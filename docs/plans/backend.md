@@ -76,7 +76,7 @@
 **커밋**:
 - scaffold FastAPI app with health endpoint
 - add ARQ worker entry + Redis settings
-- add Docker Compose (api, worker, postgres, redis)
+- add Docker Compose (postgres, redis)
 - add settings loader + `.env.example`
 - wire SQLAlchemy async engine + session dep
 - add Alembic init + empty baseline migration
