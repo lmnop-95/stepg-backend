@@ -6,5 +6,5 @@ repos:
         entry: uv run python scripts/export_openapi.py
         language: system
         pass_filenames: false
-        files: ^(apps/api/.*\.py|packages/core/stepg_core/.*\.py)$
+        files: ^(apps/api/.*\.py|packages/core/stepg_core/.*\.py|scripts/export_openapi\.py)$
         stages: [pre-commit]

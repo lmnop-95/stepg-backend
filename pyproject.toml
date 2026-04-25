@@ -8,8 +8,8 @@ dependencies = []
 [dependency-groups]
 dev = [
     "pre-commit>=4.0.0",
-    "pyright>=1.1.391",
-    "ruff>=0.8.0",
+    "pyright>=1.1.407",
+    "ruff>=0.14.0",
 ]
 
 [tool.uv.workspace]
@@ -44,6 +44,10 @@ select = [
 ignore = [
     "E501", # handled by formatter
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]    # assert is idiomatic in pytest
+"apps/api/**" = ["B008"] # FastAPI Depends(...) default-arg pattern
 
 [tool.ruff.lint.flake8-type-checking]
 runtime-evaluated-base-classes = [
