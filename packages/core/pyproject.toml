@@ -3,7 +3,10 @@ name = "stepg-core"
 version = "0.0.0"
 description = "stepg shared core (config, db, http, errors, features)"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic-settings>=2.6",
+    "pydantic>=2.10",
+]
 
 [build-system]
 requires = ["hatchling"]

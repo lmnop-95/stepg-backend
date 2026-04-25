@@ -38,11 +38,17 @@ select = [
     "S",     # bandit
     "RET",   # flake8-return
     "SIM",   # flake8-simplify
-    "TCH",   # flake8-type-checking
+    "TC",    # flake8-type-checking
     "PTH",   # flake8-use-pathlib
 ]
 ignore = [
     "E501", # handled by formatter
+]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
 ]
 
 [tool.ruff.format]
@@ -54,7 +60,9 @@ pythonVersion = "3.14"
 typeCheckingMode = "strict"
 include = ["apps", "packages", "scripts"]
 exclude = [
+    ".git",
     "**/.*",
+    "**/.venv",
     "**/__pycache__",
     "**/node_modules",
     "**/migrations/versions",
