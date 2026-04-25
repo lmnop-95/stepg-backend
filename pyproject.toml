@@ -13,11 +13,12 @@ dev = [
 ]
 
 [tool.uv.workspace]
-members = ["apps/api", "packages/core"]
+members = ["apps/api", "apps/worker", "packages/core"]
 
 [tool.uv.sources]
 stepg-api = { workspace = true }
 stepg-core = { workspace = true }
+stepg-worker = { workspace = true }
 
 [tool.ruff]
 target-version = "py314"
