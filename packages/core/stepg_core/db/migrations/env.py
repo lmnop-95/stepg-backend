@@ -58,6 +58,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        process_revision_directives=_pad_revision_id,
     )
     with context.begin_transaction():
         context.run_migrations()

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNC_DRIVER_PREFIXES = ("postgresql+asyncpg://", "postgresql+psycopg://")
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     frontend_url: str | None = None
     cookie_domain: str | None = None
-    cors_origins: list[str] = []
+    cors_origins: list[str] = Field(default_factory=list)
 
     nextauth_secret: SecretStr | None = None
 
