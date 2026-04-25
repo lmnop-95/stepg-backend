@@ -1,6 +1,6 @@
 # Legacy 재사용 자산 목록
 
-> **출처**: `../../../backend-legacy2/` 의 코드·테스트·문서.
+> **출처**: `../../../legacy/backend-legacy2/` 의 코드·테스트·문서.
 > **목적**: 새 프로젝트에서 복붙 또는 참고해 쓸 만한 조각을 M단계별로 모은다.
 > **사용법**: 해당 M 착수 시 이 파일에서 경로를 찾아 실제 파일을 꺼내 본다.
 
@@ -12,7 +12,7 @@
 
 ### 1. 파서 코드 (참고용, 재검증 필수)
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/features/organizations/sources/clova_biz_license.py` (206줄)
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/features/organizations/sources/clova_biz_license.py` (206줄)
 
 **들고 올 만한 패턴**:
 - `parse_biz_license_response(data) -> OcrBizRegResponse` — **순수 함수**, DB/HTTP 무관. 픽스처 dict만으로 단위 테스트 가능. 특화 API 응답 shape으로 재작성해도 이 "순수 함수 + 단위 테스트 풍부" 구조 자체는 그대로 유용.
@@ -23,7 +23,7 @@
 
 ### 2. Pydantic 스키마 (참고용, 필드 재매핑 필요)
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/features/organizations/schemas.py`
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/features/organizations/schemas.py`
 
 ```
 class OcrField(BaseModel):
@@ -46,7 +46,7 @@ class OcrBizRegResponse(BaseModel):
 
 ### 3. OCR 에러 5종 분류 (그대로 차용 가능)
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/core/errors.py` (OCR 관련 서브클래스들)
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/core/errors.py` (OCR 관련 서브클래스들)
 
 | 에러 | HTTP | 언제 |
 |------|------|------|
@@ -89,8 +89,8 @@ class OcrBizRegResponse(BaseModel):
 
 ### 7. 테스트 픽스처 + 단위 테스트 (구조만 차용, 데이터는 특화 API 실측으로 교체)
 
-**픽스처 위치**: `../../../backend-legacy2/tests/integration/_fixtures/clova_biz_license.py` (64줄)
-**단위 테스트**: `../../../backend-legacy2/tests/unit/features/organizations/sources/test_clova_biz_license.py` (193줄, 15 cases)
+**픽스처 위치**: `../../../legacy/backend-legacy2/tests/integration/_fixtures/clova_biz_license.py` (64줄)
+**단위 테스트**: `../../../legacy/backend-legacy2/tests/unit/features/organizations/sources/test_clova_biz_license.py` (193줄, 15 cases)
 
 들고 올 만한 **테스트 케이스 종류**:
 - happy path (7 필드 모두 채워진 응답)
@@ -111,7 +111,7 @@ class OcrBizRegResponse(BaseModel):
 
 ### 1. HTTP 재시도 유틸 `fetch_with_retry`
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/core/http.py` (~140줄)
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/core/http.py` (~140줄)
 
 핵심 설정값:
 - `_MAX_ATTEMPTS = 3`, `_BACKOFF_SECONDS = (1.0, 2.0)` — 시도 1→2 sleep 1s, 시도 2→3 sleep 2s
@@ -128,7 +128,7 @@ class OcrBizRegResponse(BaseModel):
 
 ### 2. `AnnouncementPayload` 경계 DTO
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/features/announcements/schemas.py`
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/features/announcements/schemas.py`
 
 ```
 SourceKind = Literal["bizinfo"]  # k-startup 추가 시 Literal 확장
@@ -158,7 +158,7 @@ class AnnouncementPayload(BaseModel):
 
 ### 3. bizinfo 어댑터 구현 패턴
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/features/announcements/sources/bizinfo.py` (~260줄)
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/features/announcements/sources/bizinfo.py` (~260줄)
 
 그대로 차용할 함수들:
 - **`_extract_items(data)`** — shape 검증 + element-level dict 타입 필터. null/str이 섞여도 skip
@@ -198,7 +198,7 @@ v6 M2에서 그대로 유용:
 
 ### 5. `SourceFetcher` 레지스트리
 
-**위치**: `../../../backend-legacy2/packages/core/stepg_core/features/announcements/sources/__init__.py`
+**위치**: `../../../legacy/backend-legacy2/packages/core/stepg_core/features/announcements/sources/__init__.py`
 
 ```python
 from collections.abc import Awaitable, Callable
