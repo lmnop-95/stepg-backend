@@ -24,6 +24,7 @@ if config.config_file_name is not None:
 target_metadata: MetaData | None = None
 
 _REV_ID_PATTERN = re.compile(r"^(\d{4})_")
+_AUTO_HEX_REV_ID = re.compile(r"^[a-f0-9]{12}$")
 
 
 def _next_padded_rev_id() -> str:
@@ -39,7 +40,10 @@ def _pad_revision_id(
     _revision: object,
     directives: list[MigrationScript],
 ) -> None:
-    if directives and directives[0].rev_id is not None:
+    if not directives:
+        return
+    rev_id = directives[0].rev_id
+    if rev_id is not None and _AUTO_HEX_REV_ID.match(rev_id):
         directives[0].rev_id = _next_padded_rev_id()
 
 
