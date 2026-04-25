@@ -1,0 +1,79 @@
+# CodeRabbit configuration — backend repo
+# 참조: https://docs.coderabbit.ai/reference/configuration
+# 갱신 시 docs/methodology/pr-review.md §5 와 동기화
+
+language: ko-KR
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+    ignore_title_keywords:
+      - wip
+      - draft
+      - "[skip-review]"
+
+  # 리뷰 대상 외 파일·디렉토리 (한 줄 = 한 패턴, '!' 접두는 제외)
+  path_filters:
+    - "!**/.venv/**"
+    - "!**/__pycache__/**"
+    - "!**/uv.lock"
+    - "!**/htmlcov/**"
+    - "!**/*.lock"
+
+  # 경로별 리뷰 지침. PR 템플릿·자기검토 체크리스트는 무시하라고 명시.
+  path_instructions:
+    - path: ".github/pull_request_template.md"
+      instructions: |
+        이 파일은 PR 본문 템플릿입니다. 안에 들어 있는 자기검토 체크리스트는
+        author 본인이 채울 self-review 항목이므로 리뷰 대상이 아닙니다.
+        체크박스가 비어 있어도 지적하지 마세요. PR 본문에 인라인된 체크리스트도
+        동일하게 무시해 주세요.
+
+    - path: "**/*.py"
+      instructions: |
+        Python 코드 리뷰 가이드 (CLAUDE.md 절대 규칙):
+        - datetime 은 반드시 timezone-aware UTC: `datetime.now(UTC)`. naive
+          datetime 사용 시 지적하세요. DB 컬럼은 `TIMESTAMP WITH TIME ZONE`.
+        - 모든 함수·메서드는 명시적 타입 힌트를 가져야 합니다. `Any` 남용 또는
+          반환 타입 누락 시 지적하세요.
+        - 외부 API 호출은 timeout + 재시도 정책을 가져야 합니다 (legacy 학습).
+
+    - path: "**/migrations/versions/**"
+      instructions: |
+        Alembic 마이그레이션은 자동 생성 비중이 높으니 스키마 의도가
+        ARCHITECTURE.md §4 (EligibilityRules / ExtractedPostingData / 핵심
+        엔티티 관계) 와 부합하는지에 집중하세요. 자동 생성된 import 정렬 등은
+        지적하지 마세요.
+
+    - path: "**/tests/**"
+      instructions: |
+        Phase 1 은 테스트 강제 규칙이 없습니다 (docs/methodology/pr-review.md §1).
+        테스트가 없다는 사실 자체는 지적하지 마세요. 다만 추가된 테스트가
+        있다면 fixture 재사용·assertion 의미·timezone 처리 등을 점검해 주세요.
+
+  tools:
+    ruff:
+      enabled: true
+    shellcheck:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: false  # 문서 nit 노이즈 방지
+
+chat:
+  auto_reply: true

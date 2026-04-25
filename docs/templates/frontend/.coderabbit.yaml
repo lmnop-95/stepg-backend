@@ -1,0 +1,81 @@
+# CodeRabbit configuration — frontend repo
+# 참조: https://docs.coderabbit.ai/reference/configuration
+# 갱신 시 docs/methodology/pr-review.md §5 와 동기화
+
+language: ko-KR
+
+reviews:
+  profile: assertive
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+    ignore_title_keywords:
+      - wip
+      - draft
+      - "[skip-review]"
+
+  path_filters:
+    - "!**/.next/**"
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/build/**"
+    - "!**/*.lock"
+    - "!**/pnpm-lock.yaml"
+    - "!**/bun.lockb"
+    - "!**/package-lock.json"
+
+  path_instructions:
+    - path: ".github/pull_request_template.md"
+      instructions: |
+        이 파일은 PR 본문 템플릿입니다. 안에 들어 있는 자기검토 체크리스트는
+        author 본인이 채울 self-review 항목이므로 리뷰 대상이 아닙니다.
+        체크박스가 비어 있어도 지적하지 마세요. PR 본문에 인라인된 체크리스트도
+        동일하게 무시해 주세요.
+
+    - path: "**/*.{ts,tsx}"
+      instructions: |
+        TypeScript 코드 리뷰 가이드 (ARCHITECTURE.md §1.2 + CLAUDE.md):
+        - tsconfig 가 strict + noUncheckedIndexedAccess + exactOptionalPropertyTypes
+          기준이므로 위반 시 지적해 주세요.
+        - Server Component / Client Component 경계가 명확한지 확인.
+          상호작용·브라우저 API·hook 사용은 `"use client"` 명시 파일에만.
+        - 서버 상태는 TanStack Query, 클라이언트 상태는 React state/context.
+          이 둘이 섞이면 지적해 주세요.
+        - Server Actions 와 FastAPI 백엔드 직접 호출 둘 다 허용 — 한쪽이
+          맞다고 강요하지 마세요.
+
+    - path: "**/app/**/*.tsx"
+      instructions: |
+        Next.js App Router 파일 리뷰:
+        - 디자인 토큰은 `@theme` 로 CSS-first 정의 (TailwindCSS v4).
+          JS 설정 파일(tailwind.config.js) 사용 시 지적.
+        - `"use client"` 가 페이지 최상단에 붙으면 Server Component 이점이
+          사라지니, 진짜 필요한 leaf 컴포넌트로 좁힐 수 있는지 검토.
+
+    - path: "**/*.{test,spec}.{ts,tsx}"
+      instructions: |
+        Phase 1 은 테스트 강제 규칙이 없습니다 (docs/methodology/pr-review.md §1).
+        테스트가 없다는 사실 자체는 지적하지 마세요.
+
+  tools:
+    eslint:
+      enabled: true
+    biome:
+      enabled: true
+    actionlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: false
+
+chat:
+  auto_reply: true

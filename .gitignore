@@ -1,0 +1,57 @@
+# OS — macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# OS — Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editors
+.vscode/
+.idea/
+*.code-workspace
+*~
+*.swp
+*.swo
+.history/
+
+# Python — bytecode / caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.coverage
+htmlcov/
+.tox/
+
+# Python — virtualenvs
+.venv/
+venv/
+env/
+
+# Python — packaging
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+
+# Claude Code — personal settings (skills are committed)
+.claude/settings.local.json
+
+# Daily-loop working directory (per-branch critic/PR/plan/coderabbit drafts)
+docs/.local/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+!.env.example
