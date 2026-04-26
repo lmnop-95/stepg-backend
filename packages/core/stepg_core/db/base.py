@@ -22,10 +22,19 @@ NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
     "pk": "pk_%(table_name)s",
 }
-"""ORM `CheckConstraint(name="X")` should pass the SHORT name (no prefix); this
-convention auto-prepends `ck_%(table_name)s_` so the migration emits e.g.
-`ck_companies_X`. Same rule for `uq_`, `fk_`, `pk_`. Indexes use `ix_` and the
-column label."""
+"""Naming convention rules — IMPORTANT subtlety:
+
+Only the `ck` template carries `%(constraint_name)s`, so an ORM
+`CheckConstraint(name="X")` is auto-prefixed to `ck_<table>_X`. The
+`uq_/fk_/pk_/ix_` templates use column tokens only — explicit `name=` on those
+constraints is used VERBATIM (no prefix). When you want a prefixed
+unique/index/PK/FK name (composite cases, partial unique indexes, etc.) write
+the FULL name yourself, e.g. `UniqueConstraint(..., name="uq_postings_X")`.
+
+`op.f(...)` wraps in alembic to apply this naming convention; on the
+`uq_/fk_/pk_/ix_` paths it is essentially a no-op for our pattern (full names
+already), but autogenerate emits it consistently — leave it alone for diff
+stability."""
 
 
 class Base(DeclarativeBase):
@@ -60,6 +69,8 @@ def _register_feature_mappers() -> None:
     """
     import stepg_core.features.companies.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.fields_of_work.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
+    import stepg_core.features.matching.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
+    import stepg_core.features.postings.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.projects.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.users.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
 
