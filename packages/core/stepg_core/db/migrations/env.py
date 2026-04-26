@@ -76,9 +76,11 @@ def _run_migrations_sync(connection: Connection) -> None:
 
 async def run_migrations_online() -> None:
     connectable = create_async_engine(get_settings().database_url.get_secret_value())
-    async with connectable.connect() as connection:
-        await connection.run_sync(_run_migrations_sync)
-    await connectable.dispose()
+    try:
+        async with connectable.connect() as connection:
+            await connection.run_sync(_run_migrations_sync)
+    finally:
+        await connectable.dispose()
 
 
 if context.is_offline_mode():
