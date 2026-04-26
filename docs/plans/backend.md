@@ -229,6 +229,4 @@
 
 ## Phase 1.5로 밀린 항목 (이 계획에서 다루지 않음)
 
-`../ARCHITECTURE.md` §10 참조. 요약: k-startup 어댑터, structlog+Sentry+메트릭, Resend 실발송, 알림 시스템, 매칭 근거 LLM 생성, 배포 환경 결정, 택소노미 v2, FAST 도구, R2/S3 전환, Kakao/Naver 로그인.
-
-**FTS 검색 품질 개선 (선택)**: M1에서는 Postgres `simple` text search config + pg_trgm 조합으로 시작. 한국어 형태소 분석(mecab-ko-dic / PGroonga 등) 도입은 Phase 1.5에 검색 사용 패턴/실측 품질 보고 결정. 도입 시 도커 베이스 빌드(`python:3.14-slim` → 형태소 분석기 패키지 추가) + 마이그레이션(text search config 교체)이 함께 들어감.
+`../ARCHITECTURE.md` §10 참조. 요약: k-startup 어댑터, structlog+Sentry+메트릭, Resend 실발송, 알림 시스템, 매칭 근거 LLM 생성, 배포 환경 결정, 택소노미 v2, FAST 도구, R2/S3 전환, Kakao/Naver 로그인, 형태소 FTS.
