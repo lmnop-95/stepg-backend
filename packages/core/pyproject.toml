@@ -8,6 +8,7 @@ dependencies = [
     "asyncpg>=0.31",
     "pydantic-settings>=2.6",
     "pydantic>=2.10",
+    "sqlalchemy-utils>=0.41",
     "sqlalchemy[asyncio]>=2.0",
 ]
 
