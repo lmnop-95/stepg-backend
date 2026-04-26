@@ -73,16 +73,16 @@ The skill itself cannot enter Plan Mode (it's an external session mode). The use
 
 ## Output
 
-Print:
+After Batch A Q&A completes and plan.md is updated, print:
 - **Plan summary** (1 line)
 - **Checkpoint** (1 line, quoted)
 - **Commit list** (5–10 items)
 - **Legacy section** (if M2/M5)
 - **Branch created**: `<branch>`
-- **Batch A decisions** (Plan-stage, batched format)
+- **Batch A decisions resolved** (summary of Q<n>=<option> answers recorded in plan.md "결정 확정" 섹션)
 - **Plan Mode handoff message**
 
-Do not start writing code in this skill. Stop after plan.md is written and Batch A is posted.
+Do not start writing code in this skill. Stop after plan.md is written, Batch A Q&A completes, and Output summary is printed.
 
 ## Discipline (both batches)
 

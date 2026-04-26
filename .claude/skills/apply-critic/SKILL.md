@@ -83,4 +83,4 @@ Do **not** run `git commit` from this skill. The user invokes `commit` skill sep
 - Item refers to a file that no longer exists → set Claude 판단 = `Won't fix` with reason `file deleted`, user typically OKs.
 - Item suggestion is ambiguous → set Claude 판단 = `Discuss`.
 - Multiple items target the same line → list them sequentially in the batch with `[충돌/메모]` cross-referencing each other; user may answer one as Apply and the rest as Won't fix.
-- Earlier item's Apply auto-resolves a later item → mark the later item's `[충돌/메모]` as `자동 해소 by Q<earlier>`, set Claude 판단 = `Apply` with reason "자동 해소 by Q<earlier>", and append `[applied @ unstaged via #<earlier>]` to that item's critic.md line on user OK.
+- Earlier item's Apply auto-resolves a later item → mark the later item's `[충돌/메모]` as `자동 해소 by Q<earlier>`, set Claude 판단 = `Apply` with reason "자동 해소 by Q<earlier>", and append `[applied @ unstaged via Q<earlier>]` to that item's critic.md line on user OK.
