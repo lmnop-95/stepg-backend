@@ -85,7 +85,10 @@ class Posting(Base, TimestampMixin):
 
 class Attachment(Base, TimestampMixin):
     __tablename__ = "attachments"
-    __table_args__ = (Index("ix_attachments_content_hash", "content_hash"),)
+    __table_args__ = (
+        Index("ix_attachments_posting_id", "posting_id"),
+        Index("ix_attachments_content_hash", "content_hash"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     posting_id: Mapped[int] = mapped_column(
@@ -114,6 +117,7 @@ posting_fields_of_work = Table(
         ForeignKey("fields_of_work.id", ondelete="CASCADE"),
         primary_key=True,
     ),
+    Index("ix_posting_fields_of_work_field_of_work_id", "field_of_work_id"),
 )
 """Posting ↔ FieldOfWork N:M (M4 LLM extraction stores tag_ids here)."""
 

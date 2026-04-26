@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import BigInteger, ForeignKey, Numeric, text
+from sqlalchemy import BigInteger, CheckConstraint, ForeignKey, Numeric, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import DateTime
@@ -19,6 +19,12 @@ class ProjectPostingMatch(Base):
     """
 
     __tablename__ = "project_posting_matches"
+    __table_args__ = (
+        CheckConstraint(
+            "final_score >= 0 AND final_score <= 1",
+            name="final_score_range",
+        ),
+    )
 
     project_id: Mapped[int] = mapped_column(
         BigInteger,

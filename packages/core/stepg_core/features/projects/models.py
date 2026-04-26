@@ -22,6 +22,7 @@ class Project(Base, TimestampMixin):
             unique=True,
             postgresql_where=text("is_default IS TRUE"),
         ),
+        Index("ix_projects_company_id", "company_id"),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -51,6 +52,7 @@ project_fields_of_work = Table(
         ForeignKey("fields_of_work.id", ondelete="CASCADE"),
         primary_key=True,
     ),
+    Index("ix_project_fields_of_work_field_of_work_id", "field_of_work_id"),
 )
 """Project ↔ FieldOfWork N:M (Phase 1 Top3 enforced at service layer)."""
 
