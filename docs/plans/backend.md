@@ -229,4 +229,4 @@
 
 ## Phase 1.5로 밀린 항목 (이 계획에서 다루지 않음)
 
-`../ARCHITECTURE.md` §10 참조. 요약: k-startup 어댑터, structlog+Sentry+메트릭, Resend 실발송, 알림 시스템, 매칭 근거 LLM 생성, 배포 환경 결정, 택소노미 v2, FAST 도구, R2/S3 전환, Kakao/Naver 로그인, 형태소 FTS, audit immutability DB 강화.
+`../ARCHITECTURE.md` §10 참조. 요약: k-startup 어댑터, structlog+Sentry+메트릭, Resend 실발송, 알림 시스템, 매칭 근거 LLM 생성, 배포 환경 결정, 택소노미 v2, FAST 도구, R2/S3 전환, Kakao/Naver 로그인, 형태소 FTS, audit immutability DB 강화, audit actor NULL 의미 분리, TimestampMixin onupdate DB 트리거.

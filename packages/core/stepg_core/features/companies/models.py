@@ -51,3 +51,6 @@ class Company(Base, TimestampMixin):
         server_default=text("'{}'::text[]"),
     )
     industry_ksic_code: Mapped[str | None] = mapped_column(String(5), nullable=True)
+
+
+__all__ = ["CERTIFICATIONS", "CORPORATE_TYPES", "Company"]

@@ -50,3 +50,6 @@ class ProjectPostingMatch(Base):
         onupdate=lambda: datetime.now(UTC),
         server_default=text("now()"),
     )
+
+
+__all__ = ["ProjectPostingMatch"]

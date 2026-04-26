@@ -11,3 +11,6 @@ class User(Base, TimestampMixin):
     is_admin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
+
+
+__all__ = ["User"]

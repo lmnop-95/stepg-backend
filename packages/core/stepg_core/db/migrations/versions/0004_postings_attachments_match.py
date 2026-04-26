@@ -56,7 +56,7 @@ def upgrade() -> None:
             name=op.f("ck_postings_status_allowed"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_postings")),
-        sa.UniqueConstraint("source", "source_id", name="uq_postings_source_dedup"),
+        sa.UniqueConstraint("source", "source_id", name=op.f("uq_postings_source_dedup")),
     )
     op.create_index("ix_postings_deadline_at", "postings", ["deadline_at"], unique=False)
     op.create_index(
