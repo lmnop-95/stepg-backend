@@ -7,26 +7,19 @@ from typing import TYPE_CHECKING
 from alembic import context
 from sqlalchemy.ext.asyncio import create_async_engine
 from stepg_core.core.config import get_settings
+from stepg_core.db.base import Base
 
 if TYPE_CHECKING:
     from alembic.operations.ops import MigrationScript
     from alembic.runtime.migration import MigrationContext
     from sqlalchemy import Connection
-    from sqlalchemy.sql.schema import MetaData
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-target_metadata: MetaData | None = None
-
-_cmd_opts = getattr(config, "cmd_opts", None)
-if target_metadata is None and _cmd_opts is not None and getattr(_cmd_opts, "autogenerate", False):
-    raise RuntimeError(
-        "target_metadata가 None인 상태에서 --autogenerate를 호출했습니다. "
-        "feature models를 stepg_core.db.base에 등록한 뒤 다시 시도하세요."
-    )
+target_metadata = Base.metadata
 
 _REV_ID_PATTERN = re.compile(r"^(\d{4})_")
 _AUTO_HEX_REV_ID = re.compile(r"^[a-f0-9]{12}$")

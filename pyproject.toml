@@ -53,6 +53,7 @@ ignore = [
 runtime-evaluated-base-classes = [
     "pydantic.BaseModel",
     "pydantic_settings.BaseSettings",
+    "stepg_core.db.base.Base",
 ]
 
 [tool.ruff.format]

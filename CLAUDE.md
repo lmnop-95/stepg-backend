@@ -99,7 +99,15 @@ Import root is `stepg_core` (single package under `packages/`). `apps/api` and `
 - No merge gates. Squash merge to `main`. Remote branch auto-deletes; locally `git fetch --prune`.
 - Self-review checklist lives in the PR template, not here.
 
-Full strategy: `docs/methodology/pr-review.md`.
+> **Worker discipline (MANDATORY — workflow violation = PR rejection)**: Three loops live in `docs/methodology/daily-loop.md` §2 Stages 0–6. **AskUserQuestion 절대 사용 금지** (한글 U+FFFD).
+>
+> **(a) Plan-합의 sequence**: `start-milestone` → plan.md 초안 + 본문 번호 질문 → 답 받아 plan.md 갱신 → 사용자 합의 → Plan Mode → ExitPlanMode.
+>
+> **(b) Mid-coding decision-markers**: **plan.md commit 제목은 의도(intent) 합의일 뿐 — 그 commit 안에서 만나는 모든 구현 선택(라이브러리/quoting/순서/명명/포맷/스코프/디폴트/가드 제거 여부)은 별개 분기점이다**. "in plan = 자율 결정 OK" 합리화 금지. 코딩 중 분기점 만나면 즉시 정지 → Q<n> 한국어 본문 번호 질문 → 답 받기 → 진행. Milestone 전체에서 Q-numbering 단일 시퀀스. 첫 Edit/Write 직전 self-check: "이 파일에서 자율 결정한 스타일·순서·스코프·디폴트가 있나?"
+>
+> **(c) Per-commit critic loop**: 코드 → `check` → 정지/신호 → Reviewer critic.md → `apply-critic` per-finding confirm → `commit`, 다음 commit으로 절대 건너뛰지 말 것.
+
+Full strategy: `docs/methodology/pr-review.md` (PR 단위) · `docs/methodology/daily-loop.md` (commit/coding/plan loop SoT).
 
 ---
 
@@ -111,7 +119,7 @@ Worker session:
 - `start-milestone <Mn>` — load plan + Checkpoint + (M2/M5) legacy + create branch + write `docs/.local/<branch>/plan.md`
 - `check` — lint + format + typecheck
 - `commit` — Conventional Commits (English subject, optional Korean body)
-- `apply-critic` — read `critic.md` and apply each finding with per-item user confirmation (never bulk-apply)
+- `apply-critic` — read `critic.md`, batch-triage with Claude 판단 + per-item user override or bulk 'OK' delegation, then apply sequentially per item
 - `finish-pr` — self-review checklist + write `PR.md` draft + (after Reviewer pass) `gh pr create`
 - `coderabbit-respond` — collect comments into `coderabbit.md` + per-item user confirmation
 - `cleanup-branches` — delete merged local branches + prune
