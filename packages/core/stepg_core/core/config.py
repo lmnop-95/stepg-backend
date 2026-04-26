@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, SecretStr, field_validator
@@ -6,6 +7,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNC_DRIVER_PREFIXES = ("postgresql+asyncpg://", "postgresql+psycopg://")
 _REDIS_DSN_PREFIXES = ("redis://", "rediss://")
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_DEFAULT_STORAGE_ROOT = _REPO_ROOT / "storage"
 
 
 class Settings(BaseSettings):
@@ -28,6 +31,8 @@ class Settings(BaseSettings):
 
     database_url: SecretStr
     redis_url: SecretStr
+
+    storage_root: Path = Field(default=_DEFAULT_STORAGE_ROOT)
 
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
@@ -64,6 +69,18 @@ class Settings(BaseSettings):
                 f"(허용 prefix: {', '.join(_REDIS_DSN_PREFIXES)})"
             )
         return v
+
+    @field_validator("storage_root", mode="after")
+    @classmethod
+    def _resolve_storage_root(cls, v: Path) -> Path:
+        # apps/api와 apps/worker가 다른 cwd에서 실행돼도 같은 storage 가리키도록
+        # 절대경로 강제. `~/storage` 같은 dev 머신 패턴은 expanduser로 흡수.
+        resolved = v.expanduser()
+        if not resolved.is_absolute():
+            raise ValueError(
+                f"STORAGE_ROOT는 절대경로여야 합니다 (입력: {v}, expanduser 후: {resolved})"
+            )
+        return resolved
 
 
 @lru_cache(maxsize=1)
