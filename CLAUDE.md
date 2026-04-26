@@ -99,7 +99,9 @@ Import root is `stepg_core` (single package under `packages/`). `apps/api` and `
 - No merge gates. Squash merge to `main`. Remote branch auto-deletes; locally `git fetch --prune`.
 - Self-review checklist lives in the PR template, not here.
 
-Full strategy: `docs/methodology/pr-review.md`.
+> **Worker discipline (MANDATORY — workflow violation = PR rejection)**: Three loops live in `docs/methodology/daily-loop.md` §2 Stages 0–6 — (a) plan-합의 sequence (`start-milestone` → plan.md 초안 + 본문 번호 질문 → 답 받아 plan.md 갱신 → 사용자 합의 → Plan Mode → ExitPlanMode), (b) mid-coding decision-markers (코딩 중 plan.md에 없던 분기점 만나면 즉시 정지 → Q<n> 한국어 본문 번호 질문 → 답 받기 → 진행, milestone 전체에서 Q-numbering 단일 시퀀스), (c) per-commit critic loop (코드 → `check` → 정지/신호 → Reviewer critic.md → `apply-critic` per-finding confirm → `commit`, 다음 commit으로 절대 건너뛰지 말 것). AskUserQuestion 절대 사용 금지(한글 U+FFFD).
+
+Full strategy: `docs/methodology/pr-review.md` (PR 단위) · `docs/methodology/daily-loop.md` (commit/coding/plan loop SoT).
 
 ---
 
