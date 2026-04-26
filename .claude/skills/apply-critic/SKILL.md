@@ -30,7 +30,7 @@ Skip items already marked `[applied @ ...]` or `[wont-fix: ...]`.
 
 ### 3. Triage all findings in one batch
 
-Collect every unprocessed finding from critic.md (skip already marked `[applied @ ...]` / `[wont-fix: ...]` / `[discuss]`). Present every finding in a single message. Make your own apply/skip judgment first so the user sees how you would resolve it without their input. For each finding include:
+Collect every unprocessed finding from critic.md (skip already marked `[applied @ ...]` / `[wont-fix: ...]`). `[discuss]` items stay skipped until Reviewer follow-up reopens them — by removing the `[discuss]` marker or re-issuing the finding under a new item id. Present every finding in a single message. Make your own apply/skip judgment first so the user sees how you would resolve it without their input. For each finding include:
 
 - the position id (Q<n>), file:line, severity tag if present (`Trivial` / `Minor` / `Major` / `Critical`)
 - a 1–3 line summary of the finding (paraphrased from critic.md body)
@@ -61,7 +61,7 @@ Wait for the user's batched reply. **Never auto-pick.** Map every finding to one
 For each finding, branch on the user's answer:
 - `1)` Apply → Edit the file as suggested (or as the user specifies). Stage. Append `[applied @ <unstaged>]` marker to the critic.md item; the actual `<commit-sha>` is filled by `commit` skill afterwards.
 - `2)` Won't fix → Use the one-line reason from the user's reply. Append `[wont-fix: <reason>]`.
-- `3)` Discuss → Append `[discuss]`. Continue with other items (do NOT stop the skill — discuss only freezes that one item). After loop ends, print "Discuss 항목 N건은 Reviewer 세션에 추가 코멘트 요청하세요."
+- `3)` Discuss → Append `[discuss]`. Continue with other items (do NOT stop the skill — discuss only freezes that one item). After loop ends, print "Discuss 항목 N건은 Reviewer 세션에 추가 코멘트 요청하세요." After Reviewer follow-up, reopen the item by removing the `[discuss]` marker (or re-issuing it as a new item id with updated guidance) so the next `apply-critic` run triages it again.
 
 ### 5. After all items processed
 
