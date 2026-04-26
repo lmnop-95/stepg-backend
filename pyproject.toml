@@ -1,0 +1,76 @@
+[project]
+name = "stepg"
+version = "0.0.0"
+description = "stepg backend monorepo (FastAPI + ARQ + PostgreSQL)"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.0.0",
+    "pyright>=1.1.407",
+    "ruff>=0.14.0",
+]
+
+[tool.uv.workspace]
+members = ["apps/api", "apps/worker", "packages/core"]
+
+[tool.uv.sources]
+stepg-api = { workspace = true }
+stepg-core = { workspace = true }
+stepg-worker = { workspace = true }
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["apps", "packages", "scripts"]
+extend-exclude = ["**/migrations/versions"]
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "B",     # flake8-bugbear
+    "UP",    # pyupgrade
+    "ASYNC", # flake8-async
+    "S",     # bandit
+    "RET",   # flake8-return
+    "SIM",   # flake8-simplify
+    "TC",    # flake8-type-checking
+    "PTH",   # flake8-use-pathlib
+]
+ignore = [
+    "E501", # handled by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]    # assert is idiomatic in pytest
+"apps/api/**" = ["B008"] # FastAPI Depends(...) default-arg pattern
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = [
+    "pydantic.BaseModel",
+    "pydantic_settings.BaseSettings",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["apps", "packages", "scripts"]
+exclude = [
+    ".git",
+    "**/.*",
+    "**/.venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/migrations/versions",
+]
+reportMissingImports = "error"
+reportMissingTypeStubs = "warning"
+reportUnnecessaryTypeIgnoreComment = "warning"
