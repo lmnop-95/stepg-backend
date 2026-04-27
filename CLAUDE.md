@@ -40,7 +40,7 @@ Setup:
 - `docker compose -f infra/docker-compose.dev.yml up -d` — Postgres + Redis
 - `uv run alembic upgrade head` — apply migrations
 - `uv run uvicorn stepg_api.main:app --reload --port 8080` — API
-- `uv run arq stepg_worker.WorkerSettings` — worker (separate terminal)
+- `TZ=UTC uv run arq stepg_worker.WorkerSettings` — worker (separate terminal). `TZ=UTC` 필수: ARQ `cron()`은 timezone 파라미터 없이 프로세스 local time을 사용하므로, UTC로 강제해야 cron schedule(예: M2의 `hour={17}` = KST 02:00)이 의도대로 발화함
 
 Lint / format / typecheck:
 - `uv run ruff check . && uv run ruff format --check .` — lint + format check

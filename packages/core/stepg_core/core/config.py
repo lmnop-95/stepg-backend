@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNC_DRIVER_PREFIXES = ("postgresql+asyncpg://", "postgresql+psycopg://")
 _REDIS_DSN_PREFIXES = ("redis://", "rediss://")
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_DEFAULT_STORAGE_ROOT = _REPO_ROOT / "storage"
 
 
 class Settings(BaseSettings):
@@ -28,6 +33,8 @@ class Settings(BaseSettings):
 
     database_url: SecretStr
     redis_url: SecretStr
+
+    storage_root: Path = Field(default=_DEFAULT_STORAGE_ROOT)
 
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
@@ -64,6 +71,35 @@ class Settings(BaseSettings):
                 f"(허용 prefix: {', '.join(_REDIS_DSN_PREFIXES)})"
             )
         return v
+
+    @field_validator("storage_root", mode="after")
+    @classmethod
+    def _resolve_storage_root(cls, v: Path) -> Path:
+        # apps/api와 apps/worker가 다른 cwd에서 실행돼도 같은 storage 가리키도록
+        # 절대경로 강제. `~/storage` 같은 dev 머신 패턴은 expanduser로 흡수.
+        resolved = v.expanduser()
+        if not resolved.is_absolute():
+            raise ValueError(
+                f"STORAGE_ROOT는 절대경로여야 합니다 (입력: {v}, expanduser 후: {resolved})"
+            )
+        return resolved
+
+    @model_validator(mode="after")
+    def _require_explicit_storage_root_in_prod(self) -> Settings:
+        # `_DEFAULT_STORAGE_ROOT` (`<repo-root>/storage`)는 editable workspace 설치
+        # 가정 — 비-editable 설치(`pip install stepg-core`로 site-packages 실행) 시
+        # `parents[4]`가 임의 경로가 됨. staging/production에서는 attachments 적재
+        # 위치가 운영자 의도대로여야 하므로 STORAGE_ROOT 명시 강제 (CodeRabbit
+        # #3145455681). dev에선 default OK.
+        if (
+            self.app_env in ("staging", "production")
+            and "storage_root" not in self.model_fields_set
+        ):
+            raise ValueError(
+                f"STORAGE_ROOT는 app_env={self.app_env}에서 반드시 명시해야 합니다 "
+                "— `_DEFAULT_STORAGE_ROOT`(parents[4] 기반)는 editable install 가정"
+            )
+        return self
 
 
 @lru_cache(maxsize=1)

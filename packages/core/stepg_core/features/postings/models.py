@@ -1,9 +1,14 @@
 """Posting / Attachment / posting↔FieldOfWork ORM.
 
-JSONB columns (`Posting.eligibility`, `Posting.extracted_data`) are intentionally
-typed as `Mapped[dict[str, Any] | None]` — strict shape (`EligibilityRules` /
-`ExtractedPostingData` per `docs/ARCHITECTURE.md §4.1` / §4.2) is enforced at
-the M4 service boundary via Pydantic, not at the ORM layer.
+JSONB columns (`Posting.eligibility`, `Posting.extracted_data`, `Posting.raw_payload`)
+are intentionally typed as `Mapped[dict[str, Any] | None]` — strict shape
+(`EligibilityRules` / `ExtractedPostingData` per `docs/ARCHITECTURE.md §4.1` /
+§4.2) is enforced at the M4 service boundary via Pydantic, not at the ORM layer.
+
+`raw_payload` is `nullable=True` at the schema level for safe gradual fill (M2 첫
+ingest 전 기존 row 0건이지만 server_default 없이 add) — but M2 INSERT/upsert 코드
+invariant는 NOT NULL (항상 source response dict를 박음). M4 read는 NULL 가드 없이
+dict 가정. Phase 1.5에 `ALTER COLUMN raw_payload SET NOT NULL`로 schema-level 승격.
 """
 
 from datetime import datetime
@@ -69,6 +74,7 @@ class Posting(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     eligibility: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     extracted_data: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    raw_payload: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     summary: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
     target_description: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("''"))
     support_description: Mapped[str] = mapped_column(
@@ -86,6 +92,7 @@ class Posting(Base, TimestampMixin):
 class Attachment(Base, TimestampMixin):
     __tablename__ = "attachments"
     __table_args__ = (
+        UniqueConstraint("posting_id", "content_hash", name="uq_attachments_posting_content"),
         Index("ix_attachments_posting_id", "posting_id"),
         Index("ix_attachments_content_hash", "content_hash"),
     )
