@@ -63,6 +63,13 @@ class ParseResult:
     skipped_idempotent: int
 
 
+def _strip_nulls(s: str) -> str:
+    # Postgres TEXT 컬럼은 NUL byte (0x00) 거부 (`CharacterNotInRepertoireError`).
+    # 일부 PDF/HWPX 추출 결과에 binary glitch 형태로 섞여 들어옴 — boundary 한
+    # 곳에서 정제해 모든 parser가 "DB-safe text" 계약 준수.
+    return s.replace("\x00", "")
+
+
 def parse_attachment(filename: str, path: Path) -> ParsedDocument:
     suffix = Path(filename).suffix.lower()
     parser = _DISPATCH.get(suffix)
@@ -70,10 +77,11 @@ def parse_attachment(filename: str, path: Path) -> ParsedDocument:
         raise UnsupportedAttachmentFormatError(suffix=suffix, filename=filename)
 
     document = parser(path)
-    sections = split_sections(document.paragraphs)
+    paragraphs = [_strip_nulls(p) for p in document.paragraphs]
+    sections = {k: _strip_nulls(v) for k, v in split_sections(paragraphs).items()}
     return ParsedDocument(
-        text=document.text,
-        paragraphs=document.paragraphs,
+        text=_strip_nulls(document.text),
+        paragraphs=paragraphs,
         sections=sections,
     )
 
