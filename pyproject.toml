@@ -73,5 +73,5 @@ exclude = [
     "**/migrations/versions",
 ]
 reportMissingImports = "error"
-reportMissingTypeStubs = "warning"
+reportMissingTypeStubs = "none"
 reportUnnecessaryTypeIgnoreComment = "warning"
