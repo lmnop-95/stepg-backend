@@ -47,4 +47,25 @@ class MissingApiKeyError(Exception):
     """
 
 
-__all__ = ["BizinfoSchemaError", "HttpFetchError", "MissingApiKeyError"]
+class UnsupportedAttachmentFormatError(Exception):
+    """Attachment filename suffix not in M3 dispatch matrix.
+
+    Raised by `features/parsing/service.parse_attachment` when the suffix
+    is not one of `.pdf` / `.hwpx` / `.docx`. Callers (M3 commit 6
+    `parse_attachments`) demote to `parse_status='skipped_unsupported'` +
+    WARNING log + posting 통과 (Q6/Q7 정책). ARCHITECTURE §1.1 "HWP 레거시
+    미지원" 명시 정책과 동일 처리 (`.hwp` 확장자도 본 예외).
+    """
+
+    def __init__(self, *, suffix: str, filename: str) -> None:
+        super().__init__(f"unsupported attachment format: suffix={suffix!r} filename={filename!r}")
+        self.suffix = suffix
+        self.filename = filename
+
+
+__all__ = [
+    "BizinfoSchemaError",
+    "HttpFetchError",
+    "MissingApiKeyError",
+    "UnsupportedAttachmentFormatError",
+]
