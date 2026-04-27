@@ -26,8 +26,9 @@ from typing import cast
 from urllib.parse import urljoin, urlsplit
 
 import httpx
+from pydantic import ValidationError
 from stepg_core.core.config import get_settings
-from stepg_core.core.http import _DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
+from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
 from stepg_core.features.ingestion.schemas import RawPostingPayload
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ _KST = timezone(timedelta(hours=9))
 _DATE_FORMATS: tuple[str, ...] = ("%Y-%m-%d", "%Y%m%d", "%Y.%m.%d")
 _KNOWN_FIELDS: frozenset[str] = frozenset(
     {
+        # surface mapping (RawPostingPayload fields, see plan §"bizinfo raw key → DTO 매핑")
         "pblancId",
         "pblancNm",
         "jrsdInsttNm",
@@ -46,7 +48,11 @@ _KNOWN_FIELDS: frozenset[str] = frozenset(
         "pldirSportRealmLclasCodeNm",
         "reqstBeginEndDe",
         "pblancUrl",
+        # raw_payload-only (plan: "trgetNm/hashtags/reqstMthPapersCn/기타")
         "bsnsSumryCn",
+        "trgetNm",
+        "hashtags",
+        "reqstMthPapersCn",
     }
 )
 
@@ -113,8 +119,20 @@ def _extract_items(data: object) -> list[dict[str, object]]:
     return [item for item in items_list if isinstance(item, dict)]
 
 
-def _detect_drift(item: dict[str, object]) -> None:
-    drift = set(item.keys()) - _KNOWN_FIELDS
+def _detect_drift(items: list[dict[str, object]]) -> None:
+    """Union all item keys — single warning per fetch with the full new-key set.
+
+    Detecting on the first item only (legacy `seen_drift` flag) misses keys that
+    appear in row N>0 — bizinfo carries optional fields that are absent in early
+    rows. Union avoids that. Q62 + Q65: `_KNOWN_FIELDS` covers both surface
+    mapping and raw_payload-only known keys.
+    """
+    if not items:
+        return
+    union_keys: set[str] = set()
+    for item in items:
+        union_keys.update(item.keys())
+    drift = union_keys - _KNOWN_FIELDS
     if drift:
         logger.warning("bizinfo schema drift — 새 키 발견: %s", sorted(drift))
 
@@ -130,18 +148,24 @@ def _map_item(raw: dict[str, object]) -> RawPostingPayload | None:
         )
         return None
     apply_start, apply_end = _parse_date_range(raw.get("reqstBeginEndDe"))
-    return RawPostingPayload(
-        source="bizinfo",
-        source_id=source_id,
-        title=title,
-        agency=_join_agencies(raw.get("jrsdInsttNm"), raw.get("excInsttNm")),
-        category=_opt_str(raw.get("pldirSportRealmLclasCodeNm")),
-        support_amount_krw=None,
-        apply_start_at=apply_start,
-        apply_end_at=apply_end,
-        detail_url=_normalize_url(raw.get("pblancUrl")),
-        raw_payload=raw,
-    )
+    try:
+        return RawPostingPayload(
+            source="bizinfo",
+            source_id=source_id,
+            title=title,
+            agency=_join_agencies(raw.get("jrsdInsttNm"), raw.get("excInsttNm")),
+            category=_opt_str(raw.get("pldirSportRealmLclasCodeNm")),
+            support_amount_krw=None,
+            apply_start_at=apply_start,
+            apply_end_at=apply_end,
+            detail_url=_normalize_url(raw.get("pblancUrl")),
+            raw_payload=raw,
+        )
+    except ValidationError as e:
+        # B3 정신: DTO validation 실패도 batch 폭사 금지 — 1건 skip + warn.
+        # 미래 source 추가 시 timezone/length validator 변화에 대비한 안전망.
+        logger.warning("bizinfo item skipped — DTO validation 실패 (pblancId=%r): %s", source_id, e)
+        return None
 
 
 async def fetch() -> list[RawPostingPayload]:
@@ -154,21 +178,22 @@ async def fetch() -> list[RawPostingPayload]:
         "searchCnt": _PAGE_SIZE,
     }
     async with httpx.AsyncClient(
-        timeout=_DEFAULT_TIMEOUT_SECONDS,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
         follow_redirects=True,
     ) as client:
         response = await fetch_with_retry(client, "GET", _BIZINFO_URL, params=params)
     items = _extract_items(response.json())
-    payloads: list[RawPostingPayload] = []
-    seen_drift = False
-    for item in items:
-        if not seen_drift:
-            _detect_drift(item)
-            seen_drift = True
-        payload = _map_item(item)
-        if payload is not None:
-            payloads.append(payload)
-    logger.info("bizinfo fetch: %d items received, %d payloads", len(items), len(payloads))
+    _detect_drift(items)
+    payloads: list[RawPostingPayload] = [
+        payload for item in items if (payload := _map_item(item)) is not None
+    ]
+    dropped = len(items) - len(payloads)
+    logger.info(
+        "bizinfo fetch: received=%d ingested=%d dropped=%d",
+        len(items),
+        len(payloads),
+        dropped,
+    )
     return payloads
 
 

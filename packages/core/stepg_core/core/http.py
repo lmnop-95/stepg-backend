@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_TIMEOUT_SECONDS = 15.0
+DEFAULT_TIMEOUT_SECONDS = 15.0
 _MAX_ATTEMPTS = 3
 _STOP_AFTER_DELAY_SECONDS = 60.0
 _RETRIABLE_STATUS: frozenset[int] = frozenset({429, 500, 502, 503, 504})
@@ -115,7 +115,6 @@ async def fetch_with_retry(
                         safe,
                         last_attempt,
                     )
-                    response.raise_for_status()
                 response.raise_for_status()
                 return response
     except RetryError as e:  # pragma: no cover — reraise=True suppresses RetryError
@@ -144,7 +143,6 @@ async def fetch_with_retry(
 
 
 __all__ = [
-    "_DEFAULT_TIMEOUT_SECONDS",
-    "_safe_url",
+    "DEFAULT_TIMEOUT_SECONDS",
     "fetch_with_retry",
 ]
