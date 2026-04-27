@@ -28,6 +28,7 @@ from urllib.parse import urljoin, urlsplit
 import httpx
 from pydantic import ValidationError
 from stepg_core.core.config import get_settings
+from stepg_core.core.errors import BizinfoSchemaError, MissingApiKeyError
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
 from stepg_core.features.ingestion.schemas import AttachmentRef, RawPostingPayload
 
@@ -168,13 +169,13 @@ def _extract_attachments(raw: dict[str, object]) -> tuple[AttachmentRef, ...]:
 
 def _extract_items(data: object) -> list[dict[str, object]]:
     if not isinstance(data, dict):
-        raise RuntimeError(f"bizinfo 응답 타입 변경 — 기대 dict, 실제 {type(data).__name__}")
+        raise BizinfoSchemaError(f"bizinfo 응답 타입 변경 — 기대 dict, 실제 {type(data).__name__}")
     typed_data = cast("dict[str, object]", data)
     if "jsonArray" not in typed_data:
-        raise RuntimeError("bizinfo 응답 구조 변경 — `jsonArray` 키 부재")
+        raise BizinfoSchemaError("bizinfo 응답 구조 변경 — `jsonArray` 키 부재")
     items_obj = typed_data["jsonArray"]
     if not isinstance(items_obj, list):
-        raise RuntimeError(
+        raise BizinfoSchemaError(
             f"bizinfo `jsonArray` 타입 변경 — 기대 list, 실제 {type(items_obj).__name__}"
         )
     items_list = cast("list[object]", items_obj)
@@ -234,7 +235,7 @@ def _map_item(raw: dict[str, object]) -> RawPostingPayload | None:
 async def fetch() -> list[RawPostingPayload]:
     settings = get_settings()
     if settings.bizinfo_api_key is None:
-        raise RuntimeError("BIZINFO_API_KEY 미설정 — set env")
+        raise MissingApiKeyError("BIZINFO_API_KEY 미설정 — set env")
     params: dict[str, str | int] = {
         "crtfcKey": settings.bizinfo_api_key.get_secret_value(),
         "dataType": "json",
@@ -245,7 +246,8 @@ async def fetch() -> list[RawPostingPayload]:
         follow_redirects=True,
     ) as client:
         response = await fetch_with_retry(client, "GET", _BIZINFO_URL, params=params)
-    items = _extract_items(response.json())
+        raw = response.json()
+    items = _extract_items(raw)
     _detect_drift(items)
     payloads: list[RawPostingPayload] = [
         payload for item in items if (payload := _map_item(item)) is not None

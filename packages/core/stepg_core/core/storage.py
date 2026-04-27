@@ -85,6 +85,11 @@ class LocalFsBackend(StorageBackend):
 
     def __init__(self, root: Path) -> None:
         self._root = root
+        # Single root-creation site (Pass 11 Rule 3): caller used to mkdir the
+        # attachments root before instantiation; now backend owns its own root
+        # so Phase 1.5 R2/S3 backend can validate the bucket here without
+        # caller cooperation.
+        self._root.mkdir(parents=True, exist_ok=True)  # noqa: ASYNC240 — sync init
 
     def _dst(self, content_hash: str) -> Path:
         _validate_hash(content_hash)

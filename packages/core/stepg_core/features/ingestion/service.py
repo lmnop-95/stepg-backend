@@ -44,7 +44,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from stepg_core.core.config import get_settings
 from stepg_core.core.db import get_session_factory
-from stepg_core.core.errors import HttpFetchError
+from stepg_core.core.errors import BizinfoSchemaError, HttpFetchError, MissingApiKeyError
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, stream_to_temp_with_retry
 from stepg_core.core.storage import LocalFsBackend
 from stepg_core.features.ingestion.sources.registry import SOURCES
@@ -299,8 +299,7 @@ async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ 
     # (Pass 8-K). Phase 1.5 R2/S3 backend will need `backend.tempdir()` API
     # to keep this invariant when temp lives on local FS but dst lives remote.
     attachments_root = settings.storage_root / "attachments"
-    attachments_root.mkdir(parents=True, exist_ok=True)
-    backend: StorageBackend = LocalFsBackend(attachments_root)
+    backend: StorageBackend = LocalFsBackend(attachments_root)  # __init__ creates root
 
     now = datetime.now(UTC)
     totals = PersistResult(received=0, inserted=0, updated=0)
@@ -312,11 +311,13 @@ async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ 
         for source, fetcher in SOURCES.items():
             try:
                 payloads = await fetcher()
-            except HttpFetchError, RuntimeError:
-                # HttpFetchError: retry exhaustion (commit 1). RuntimeError:
-                # `BIZINFO_API_KEY 미설정` (Q25) + bizinfo response 구조 drift
-                # (`_extract_items`). 코드 버그류(TypeError/AttributeError/ImportError)는
-                # propagate해서 ARQ 다음 cron이 재시도하거나 실패가 드러나도록 둠.
+            except HttpFetchError, BizinfoSchemaError, MissingApiKeyError:
+                # HttpFetchError: retry exhaustion (commit 1).
+                # BizinfoSchemaError: bizinfo 응답 envelope/key/list-element 변경
+                # (`_extract_items`). MissingApiKeyError: `BIZINFO_API_KEY` 미설정
+                # (Q25). 좁게 catch — 코드 버그류(TypeError/AttributeError/ImportError)
+                # 와 third-party RuntimeError(httpx/pydantic/asyncpg)는 propagate해
+                # ARQ 다음 cron이 재시도하거나 실패가 드러나도록 둠 (Pass 11 #2).
                 logger.exception("ingest source 실패 — source=%s", source)
                 continue
             async with factory() as session:

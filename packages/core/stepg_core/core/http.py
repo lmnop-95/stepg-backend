@@ -71,6 +71,19 @@ def _should_retry(exc: BaseException) -> bool:
     return False
 
 
+def _make_retrying() -> AsyncRetrying:
+    """Single retry policy source — both `fetch_with_retry` and
+    `stream_to_temp_with_retry` consume this factory so policy edits land in
+    one place (Pass 11 Rule 3 dedup).
+    """
+    return AsyncRetrying(
+        stop=stop_after_attempt(_MAX_ATTEMPTS) | stop_after_delay(_STOP_AFTER_DELAY_SECONDS),
+        wait=wait_exponential_jitter(initial=1.0, max=4.0),
+        retry=retry_if_exception(_should_retry),
+        reraise=True,
+    )
+
+
 async def fetch_with_retry(
     client: httpx.AsyncClient,
     method: str,
@@ -95,12 +108,7 @@ async def fetch_with_retry(
     last_cause: BaseException | None = None
 
     try:
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(_MAX_ATTEMPTS) | stop_after_delay(_STOP_AFTER_DELAY_SECONDS),
-            wait=wait_exponential_jitter(initial=1.0, max=4.0),
-            retry=retry_if_exception(_should_retry),
-            reraise=True,
-        ):
+        async for attempt in _make_retrying():
             with attempt:
                 last_attempt = attempt.retry_state.attempt_number
                 response = await client.request(
@@ -179,12 +187,7 @@ async def stream_to_temp_with_retry(
     last_cause: BaseException | None = None
 
     try:
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(_MAX_ATTEMPTS) | stop_after_delay(_STOP_AFTER_DELAY_SECONDS),
-            wait=wait_exponential_jitter(initial=1.0, max=4.0),
-            retry=retry_if_exception(_should_retry),
-            reraise=True,
-        ):
+        async for attempt in _make_retrying():
             with attempt:
                 last_attempt = attempt.retry_state.attempt_number
                 hasher = hashlib.sha256()
