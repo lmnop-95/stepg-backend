@@ -20,6 +20,7 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="forbid",
         frozen=True,
+        env_ignore_empty=True,
     )
 
     app_env: Literal["development", "staging", "production"] = "development"
