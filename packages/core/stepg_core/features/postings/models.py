@@ -92,6 +92,7 @@ class Posting(Base, TimestampMixin):
 class Attachment(Base, TimestampMixin):
     __tablename__ = "attachments"
     __table_args__ = (
+        UniqueConstraint("posting_id", "content_hash", name="uq_attachments_posting_content"),
         Index("ix_attachments_posting_id", "posting_id"),
         Index("ix_attachments_content_hash", "content_hash"),
     )

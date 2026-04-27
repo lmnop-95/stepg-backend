@@ -25,6 +25,22 @@ SourceKind = Literal["bizinfo"]
 """Phase 1 = bizinfo only. Phase 1.5 extends with `"kstartup"`."""
 
 
+class AttachmentRef(BaseModel):
+    """Source-supplied attachment URL + display filename (Q81).
+
+    `filename` carries the source's original name (e.g. bizinfo `fileNm` —
+    `[공고문]_2026년_..._모집공고.hwpx`). Mime detection happens at download
+    time via `mimetypes.guess_type(filename)` because public-agency
+    `Content-Type` headers are unreliable. `url` is the absolute fetch URL;
+    bizinfo serves attachments via `getImageFile.do?atchFileId=...&fileSn=...`.
+    """
+
+    model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
+
+    filename: str = Field(min_length=1)
+    url: str = Field(min_length=1)
+
+
 class RawPostingPayload(BaseModel):
     model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
 
@@ -37,6 +53,7 @@ class RawPostingPayload(BaseModel):
     apply_start_at: datetime | None = None
     apply_end_at: datetime | None = None
     detail_url: str | None = None
+    attachments: tuple[AttachmentRef, ...] = ()
     raw_payload: dict[str, object]
 
     @field_validator("apply_start_at", "apply_end_at", mode="after")
@@ -49,4 +66,4 @@ class RawPostingPayload(BaseModel):
         return v.astimezone(UTC)
 
 
-__all__ = ["RawPostingPayload", "SourceKind"]
+__all__ = ["AttachmentRef", "RawPostingPayload", "SourceKind"]

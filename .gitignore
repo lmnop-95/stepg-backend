@@ -55,3 +55,7 @@ docs/.local/
 .env.local
 .env.*.local
 !.env.example
+
+# Local storage — content-hash sharded attachments / parsed outputs
+# (re-fetchable from source APIs; may contain PII from gov posting attachments)
+storage/

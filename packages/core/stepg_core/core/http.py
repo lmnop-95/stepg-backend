@@ -20,7 +20,10 @@ Design (`docs/.local/feat-ingestion-M2-bizinfo/plan.md` Q1/Q2/Q20/Q33/Q38, legac
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import tempfile
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -142,7 +145,93 @@ async def fetch_with_retry(
     raise HttpFetchError(url=safe, status=last_status, attempt=last_attempt, cause=last_cause)
 
 
+async def stream_to_temp_with_retry(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    into_dir: Path,
+    chunk_size: int = 8192,
+) -> tuple[Path, str, int]:
+    """Stream a GET into a temp file under `into_dir`.
+
+    Returns `(temp_path, sha256_hex, size_bytes)`. Reuses the same retry
+    policy as `fetch_with_retry` (3 attempts, exponential jitter, 60s delay
+    cap, retry on 429/5xx + network) but routes through `client.stream(...)`
+    so the body is hashed + written chunk-wise without buffering the whole
+    response in memory — bizinfo HWP attachments occasionally exceed 50 MB.
+
+    Caller wraps the call in `asyncio.timeout(N)` for the per-download budget
+    (M2 commit 5: 60s — ASYNC109 forbids `timeout=` kwarg here).
+
+    Partial temp files from failed attempts are unlinked before the next
+    retry; only the successful file survives the call. The caller is
+    responsible for moving / unlinking the returned path.
+
+    `tmp.write(chunk)` is sync I/O inside an async function — 8 KB × N
+    accumulates ~64 ms event-loop block on a 50 MB attachment (Pass 8-L).
+    Phase 1 worker processes attachments serially so this is acceptable;
+    Phase 1.5 R2/S3 backend brings native async clients and supersedes
+    this helper.
+    """
+    safe = _safe_url(url)
+    last_status: int | None = None
+    last_attempt = 0
+    last_cause: BaseException | None = None
+
+    try:
+        async for attempt in AsyncRetrying(
+            stop=stop_after_attempt(_MAX_ATTEMPTS) | stop_after_delay(_STOP_AFTER_DELAY_SECONDS),
+            wait=wait_exponential_jitter(initial=1.0, max=4.0),
+            retry=retry_if_exception(_should_retry),
+            reraise=True,
+        ):
+            with attempt:
+                last_attempt = attempt.retry_state.attempt_number
+                hasher = hashlib.sha256()
+                size = 0
+                tmp = tempfile.NamedTemporaryFile(  # noqa: SIM115 — explicit close path
+                    delete=False, dir=into_dir, prefix="attach-"
+                )
+                tmp_path = Path(tmp.name)
+                try:
+                    async with client.stream("GET", url) as response:
+                        if _is_retriable_status(response.status_code):
+                            logger.warning(
+                                "http retry status=%d url=%s attempt=%d",
+                                response.status_code,
+                                safe,
+                                last_attempt,
+                            )
+                        response.raise_for_status()
+                        async for chunk in response.aiter_bytes(chunk_size):
+                            tmp.write(chunk)
+                            hasher.update(chunk)
+                            size += len(chunk)
+                    tmp.close()
+                    return tmp_path, hasher.hexdigest(), size
+                except BaseException:
+                    tmp.close()
+                    tmp_path.unlink(missing_ok=True)  # noqa: ASYNC240 — Q76 sync syscall (microsecond)
+                    raise
+    except RetryError as e:  # pragma: no cover — reraise=True suppresses RetryError
+        last_cause = e.last_attempt.exception() if e.last_attempt else None
+    except httpx.HTTPStatusError as e:
+        last_status = e.response.status_code
+        last_cause = e
+    except (httpx.TimeoutException, httpx.NetworkError) as e:
+        last_cause = e
+
+    logger.error(
+        "http stream failed url=%s status=%s attempt=%d",
+        safe,
+        last_status,
+        last_attempt,
+    )
+    raise HttpFetchError(url=safe, status=last_status, attempt=last_attempt, cause=last_cause)
+
+
 __all__ = [
     "DEFAULT_TIMEOUT_SECONDS",
     "fetch_with_retry",
+    "stream_to_temp_with_retry",
 ]

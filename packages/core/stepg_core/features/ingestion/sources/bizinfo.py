@@ -29,7 +29,7 @@ import httpx
 from pydantic import ValidationError
 from stepg_core.core.config import get_settings
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
-from stepg_core.features.ingestion.schemas import RawPostingPayload
+from stepg_core.features.ingestion.schemas import AttachmentRef, RawPostingPayload
 
 logger = logging.getLogger(__name__)
 
@@ -48,11 +48,26 @@ _KNOWN_FIELDS: frozenset[str] = frozenset(
         "pldirSportRealmLclasCodeNm",
         "reqstBeginEndDe",
         "pblancUrl",
+        # attachments (Q81 — fileNm/flpthNm = original, printFileNm/printFlpthNm = PDF print)
+        "fileNm",
+        "flpthNm",
+        "printFileNm",
+        "printFlpthNm",
         # raw_payload-only (plan: "trgetNm/hashtags/reqstMthPapersCn/기타")
         "bsnsSumryCn",
         "trgetNm",
         "hashtags",
         "reqstMthPapersCn",
+        # extra metadata observed in 2026-04-27 smoke call (raw_payload-only).
+        # M2 시점 noise 제거용 — 이 키들의 *의미* 변경(예: `inqireCo` int→str)은
+        # drift detector가 못 잡음. raw_payload diff 모니터링은 M3 이후 별도 구축.
+        "creatPnttm",
+        "updtPnttm",
+        "inqireCo",
+        "totCnt",
+        "pldirSportRealmMlsfcCodeNm",
+        "rceptEngnHmpgUrl",
+        "refrncNm",
     }
 )
 
@@ -102,6 +117,53 @@ def _normalize_url(value: object) -> str | None:
     if urlsplit(raw).scheme:
         return raw
     return urljoin(_BIZINFO_BASE, raw)
+
+
+_ATTACHMENT_DELIMITER = "@"
+
+
+def _split_attachment_field(value: object) -> list[str]:
+    """bizinfo joins multi-attachment fields with `@` (e.g. `a.hwp@b.pdf@c.zip`).
+
+    Single attachments arrive as bare strings without a delimiter, so the
+    split handles both shapes uniformly. Empty / whitespace-only segments
+    are dropped.
+
+    Filenames containing `@` themselves are unsupported (Pass 8-O) — bizinfo
+    has not been observed emitting such names; if a future drift produces
+    misalignment, raw_payload comparison is the diagnostic path.
+    """
+    raw = _opt_str(value)
+    if raw is None:
+        return []
+    return [s for s in (segment.strip() for segment in raw.split(_ATTACHMENT_DELIMITER)) if s]
+
+
+def _extract_attachments(raw: dict[str, object]) -> tuple[AttachmentRef, ...]:
+    """Pull `(fileNm, flpthNm)` + `(printFileNm, printFlpthNm)` pairs (Q81).
+
+    Each pair may carry multiple attachments joined by `@` — original docs
+    (`fileNm`/`flpthNm`, typically `.hwp`/`.zip`) and print-friendly PDFs
+    (`printFileNm`/`printFlpthNm`). Names and URLs are split on the same
+    delimiter and zipped pair-by-pair so a `_normalize_url` rejection drops
+    *both* halves of that pair instead of shifting later URLs onto earlier
+    filenames (Pass 8-J).
+    """
+    refs: list[AttachmentRef] = []
+    for name_key, url_key in (("fileNm", "flpthNm"), ("printFileNm", "printFlpthNm")):
+        names = _split_attachment_field(raw.get(name_key))
+        url_segments = _split_attachment_field(raw.get(url_key))
+        for filename, segment in zip(names, url_segments, strict=False):
+            url = _normalize_url(segment)
+            if url is None:
+                logger.warning(
+                    "bizinfo attachment URL 정규화 실패 — pair drop (filename=%s, segment=%r)",
+                    filename,
+                    segment,
+                )
+                continue
+            refs.append(AttachmentRef(filename=filename, url=url))
+    return tuple(refs)
 
 
 def _extract_items(data: object) -> list[dict[str, object]]:
@@ -159,6 +221,7 @@ def _map_item(raw: dict[str, object]) -> RawPostingPayload | None:
             apply_start_at=apply_start,
             apply_end_at=apply_end,
             detail_url=_normalize_url(raw.get("pblancUrl")),
+            attachments=_extract_attachments(raw),
             raw_payload=raw,
         )
     except ValidationError as e:
