@@ -288,7 +288,7 @@ async def download_attachments(
     return saved
 
 
-async def ingest_postings(_ctx: dict[str, Any]) -> None:
+async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ ctx 시그니처 고정
     """ARQ entry point — fetch all sources, persist postings, download attachments.
 
     commit 3 wired fetch + persist; commit 5 adds attachment download +
