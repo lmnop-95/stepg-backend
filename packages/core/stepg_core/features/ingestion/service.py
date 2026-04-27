@@ -330,7 +330,7 @@ async def ingest_postings(_ctx: dict[str, Any]) -> None:
                     into_dir=attachments_root,
                 )
             logger.info(
-                "ingest source=%s received=%d inserted=%d updated=%d attachments=%d",
+                "ingest source=%s received=%d inserted=%d updated=%d attachments_attempted=%d",
                 source,
                 result.received,
                 result.inserted,
@@ -345,7 +345,7 @@ async def ingest_postings(_ctx: dict[str, Any]) -> None:
             )
             saved_total += saved
     logger.info(
-        "ingest_postings done — received=%d inserted=%d updated=%d attachments=%d",
+        "ingest_postings done — received=%d inserted=%d updated=%d attachments_attempted=%d",
         totals.received,
         totals.inserted,
         totals.updated,
