@@ -37,6 +37,8 @@ class Settings(BaseSettings):
 
     storage_root: Path = Field(default=_DEFAULT_STORAGE_ROOT)
 
+    pdf_ocr_fallback_min_chars_per_page: int = Field(default=50, ge=0)
+
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
     clova_ocr_url: str | None = None
