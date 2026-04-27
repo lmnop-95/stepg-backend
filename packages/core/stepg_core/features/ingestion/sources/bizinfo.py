@@ -154,6 +154,15 @@ def _extract_attachments(raw: dict[str, object]) -> tuple[AttachmentRef, ...]:
     for name_key, url_key in (("fileNm", "flpthNm"), ("printFileNm", "printFlpthNm")):
         names = _split_attachment_field(raw.get(name_key))
         url_segments = _split_attachment_field(raw.get(url_key))
+        if len(names) != len(url_segments):
+            # zip(strict=False)이 초과분을 silent drop하므로 drift 가시성 위해 한 번 경고.
+            logger.warning(
+                "bizinfo attachment %s/%s 길이 불일치 — names=%d urls=%d (초과분은 silent drop)",
+                name_key,
+                url_key,
+                len(names),
+                len(url_segments),
+            )
         for filename, segment in zip(names, url_segments, strict=False):
             url = _normalize_url(segment)
             if url is None:

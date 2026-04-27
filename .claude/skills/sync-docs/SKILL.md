@@ -55,10 +55,10 @@ Frontend `.claude/skills/<skill>/SKILL.md` is a sibling mirror of backend's, not
 
 But the **methodology shape** (batch vs one-by-one triage, Claude 판단 verdict, bulk `OK` delegation, per-commit critic loop, etc.) is shared. When backend skills get methodology updates, frontend mirrors must be ported manually — auto-`cp` would clobber stack-adaptive content.
 
-This step diffs all 10 skills and classifies drift:
+This step diffs every skill (directory scan — 신규/리네임 skill 자동 추적) and classifies drift:
 
 ```
-for s in apply-critic check cleanup-branches coderabbit-respond commit critic finish-pr start-milestone start-review sync-docs; do
+for s in $(find .claude/skills -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort); do
   echo "===== $s ====="
   diff .claude/skills/$s/SKILL.md ../frontend/.claude/skills/$s/SKILL.md
 done
@@ -66,8 +66,14 @@ done
 
 For each diff hunk, classify by content:
 
-- **stack-adaptive (preserve)** — diff lines mention any of: `uv run` / `ruff` / `pyright` / `pytest` (backend) vs `bunx` / `biome` / `tsc` / `vitest` (frontend); `Pythonic` / `dataclass` / `Pydantic` (backend) vs `TypeScript` / `React` / `Next` / `aria-` / `Tailwind` (frontend); explicit "backend" / "frontend" scope nouns; `../backend/docs/` cross-refs from frontend side; or sections titled "Frontend-specific" / "Backend-specific".
-- **methodology drift (port)** — everything else. Common markers: presence in backend but not frontend of "batch", "Claude 판단", "bulk `OK`", "OK 일괄", "single message", "do not pause for confirmation", "do NOT halt the batch"; or presence of older one-by-one wording in frontend ("Walk items one-by-one", "Never bulk-apply", "ask the user to confirm before running", "Stop the skill", etc).
+- **stack-adaptive (preserve)** — narrowing rule: classify only when one of these *concrete* signals is present in the diff hunk —
+  - command/tool names: `uv run`, `ruff`, `pyright`, `pytest` (backend) ↔ `bunx`, `biome`, `tsc`, `vitest` (frontend)
+  - language/framework idiom names: `Pythonic`, `dataclass`, `Pydantic`, `Mapping[K, V]` (backend) ↔ `TypeScript`, `React`, `Next`, `aria-`, `Tailwind`, `useState`, `RSC` (frontend)
+  - explicit section headers: `## Frontend-specific`, `## Backend-specific` (whole section is preserved per-side)
+  - cross-reference paths: `../backend/docs/` (frontend-only)
+  
+  Bare words "backend" / "frontend" appearing in prose **do not** qualify alone — methodology-shape lines often mention them too. Require co-occurrence with one of the signals above.
+- **methodology drift (port)** — everything else. Strong markers: backend-only presence of `batch`, `Claude 판단`, `bulk OK`, `OK 일괄`, `single message`, `do not pause for confirmation`, `do NOT halt the batch`; or older frontend wording `Walk items one-by-one`, `Never bulk-apply`, `ask the user to confirm before running`, `Stop the skill`.
 
 Report per skill:
 

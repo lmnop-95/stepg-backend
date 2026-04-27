@@ -245,19 +245,27 @@ async def download_attachments(
             )
             continue
         for ref in payload.attachments:
+            temp_path: Path | None = None
             try:
                 async with asyncio.timeout(_ATTACHMENT_DOWNLOAD_TIMEOUT_SECONDS):
                     temp_path, content_hash, size = await stream_to_temp_with_retry(
                         client, ref.url, into_dir=into_dir
                     )
-            except HttpFetchError, TimeoutError:
+                stored_path = await backend.put_path(content_hash, temp_path)
+            except HttpFetchError, TimeoutError, OSError:
+                # OSError catches `backend.put_path` failures (FS full / EACCES /
+                # cross-FS rename) so a single attachment failure does not abort
+                # the rest of the batch (Q93 정신 — per-attachment demote to warn).
+                # `temp_path` may be set (download succeeded, put_path failed) —
+                # unlink to prevent leak (CodeRabbit #3145455700).
                 logger.exception(
                     "attachment download 실패 — posting_id=%d filename=%s",
                     posting_id,
                     ref.filename,
                 )
+                if temp_path is not None:
+                    temp_path.unlink(missing_ok=True)  # noqa: ASYNC240 — Q76
                 continue
-            stored_path = await backend.put_path(content_hash, temp_path)
             mime, _ = mimetypes.guess_type(ref.filename)
             rows_to_insert.append(
                 {

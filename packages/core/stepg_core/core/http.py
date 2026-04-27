@@ -150,7 +150,9 @@ async def fetch_with_retry(
         content_type,
         body_len,
     )
-    raise HttpFetchError(url=safe, status=last_status, attempt=last_attempt, cause=last_cause)
+    raise HttpFetchError(
+        url=safe, status=last_status, attempt=last_attempt, cause=last_cause
+    ) from last_cause
 
 
 async def stream_to_temp_with_retry(
@@ -170,6 +172,11 @@ async def stream_to_temp_with_retry(
 
     Caller wraps the call in `asyncio.timeout(N)` for the per-download budget
     (M2 commit 5: 60s — ASYNC109 forbids `timeout=` kwarg here).
+
+    Caller-precondition: `into_dir` must exist. `tempfile.NamedTemporaryFile`
+    raises `FileNotFoundError` (not retried by `_should_retry`) if the dir is
+    missing, so absence is a caller bug. In M2 ingestion `LocalFsBackend.__init__`
+    creates the attachments root, satisfying this precondition.
 
     Partial temp files from failed attempts are unlinked before the next
     retry; only the successful file survives the call. The caller is
@@ -230,7 +237,9 @@ async def stream_to_temp_with_retry(
         last_status,
         last_attempt,
     )
-    raise HttpFetchError(url=safe, status=last_status, attempt=last_attempt, cause=last_cause)
+    raise HttpFetchError(
+        url=safe, status=last_status, attempt=last_attempt, cause=last_cause
+    ) from last_cause
 
 
 __all__ = [
