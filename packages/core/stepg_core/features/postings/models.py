@@ -19,6 +19,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Column,
+    Enum,
     ForeignKey,
     Index,
     String,
@@ -37,6 +38,16 @@ POSTING_STATUSES: tuple[str, ...] = ("ACTIVE", "CLOSED", "EXPIRED", "DRAFT")
 """§6.1 시스템 코드. SoT는 이 상수 — `_POSTING_STATUS_CHECK_SQL`이 SQL 표현 자동 생성."""
 
 _POSTING_STATUS_CHECK_SQL = f"status IN ({', '.join(repr(s) for s in POSTING_STATUSES)})"
+
+ATTACHMENT_PARSE_STATUSES: tuple[str, ...] = (
+    "pending",
+    "ok",
+    "skipped_unsupported",
+    "failed",
+)
+"""M3 — `Attachment.parse_status` 라이프사이클. parse 전 'pending', 성공 'ok',
+미지원 형식 'skipped_unsupported', 실패 'failed'. SoT는 이 상수, 마이그레이션
+0011이 Postgres ENUM type `attachment_parse_status` 자동 생성."""
 
 
 class Posting(Base, TimestampMixin):
@@ -107,6 +118,18 @@ class Attachment(Base, TimestampMixin):
     mime: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     local_path: Mapped[str] = mapped_column(Text, nullable=False)
+    extracted_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sections: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    parse_status: Mapped[str] = mapped_column(
+        Enum(
+            *ATTACHMENT_PARSE_STATUSES,
+            name="attachment_parse_status",
+            create_type=False,
+        ),
+        nullable=False,
+        server_default=text("'pending'::attachment_parse_status"),
+    )
+    parse_error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 posting_fields_of_work = Table(
@@ -129,4 +152,10 @@ posting_fields_of_work = Table(
 """Posting ↔ FieldOfWork N:M (M4 LLM extraction stores tag_ids here)."""
 
 
-__all__ = ["POSTING_STATUSES", "Attachment", "Posting", "posting_fields_of_work"]
+__all__ = [
+    "ATTACHMENT_PARSE_STATUSES",
+    "POSTING_STATUSES",
+    "Attachment",
+    "Posting",
+    "posting_fields_of_work",
+]

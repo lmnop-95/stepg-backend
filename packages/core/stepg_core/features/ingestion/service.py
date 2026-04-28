@@ -48,6 +48,7 @@ from stepg_core.core.errors import BizinfoSchemaError, HttpFetchError, MissingAp
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, stream_to_temp_with_retry
 from stepg_core.core.storage import LocalFsBackend
 from stepg_core.features.ingestion.sources.registry import SOURCES
+from stepg_core.features.parsing.service import ParseResult, parse_attachments
 from stepg_core.features.postings.models import Attachment, Posting
 
 if TYPE_CHECKING:
@@ -338,13 +339,37 @@ async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ 
                     backend=backend,
                     into_dir=attachments_root,
                 )
+            # parse_attachments — download 직후 별도 factory() session, attachment
+            # 단위 sequential loop, batch commit at end (Q72/Q75, M2 패턴 일관).
+            # posting_ids는 payloads의 (source, source_id)로 SELECT 후 같은 session
+            # 으로 parse_attachments 호출 (Q76/Q83, 3 sessions per source).
+            if payloads:
+                keys = {(p.source, p.source_id) for p in payloads}
+                async with factory() as session:
+                    id_rows = await session.execute(
+                        sa.select(Posting.id).where(
+                            sa.tuple_(Posting.source, Posting.source_id).in_(keys)
+                        )
+                    )
+                    posting_ids = [row.id for row in id_rows.all()]
+                    parse_result = await parse_attachments(session, posting_ids)
+            else:
+                parse_result = ParseResult(
+                    parsed=0, skipped_unsupported=0, failed=0, skipped_idempotent=0
+                )
             logger.info(
-                "ingest source=%s received=%d inserted=%d updated=%d attachments_attempted=%d",
+                "ingest source=%s received=%d inserted=%d updated=%d "
+                "attachments_attempted=%d parsed=%d skipped_unsupported=%d failed=%d "
+                "skipped_idempotent=%d",
                 source,
                 result.received,
                 result.inserted,
                 result.updated,
                 saved,
+                parse_result.parsed,
+                parse_result.skipped_unsupported,
+                parse_result.failed,
+                parse_result.skipped_idempotent,
             )
             totals = replace(
                 totals,
