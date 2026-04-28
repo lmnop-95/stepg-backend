@@ -10,11 +10,12 @@ Create Date: 2026-04-28 16:00:00.000000+00:00
 KSIC 10차 cross-check evidence (`docs/TAXONOMY.md` §4.2 line 81):
 - primary: `data.go.kr/data/15049591` (CSV UTF-8, 5자리 zero-padded).
 - fallback: `kssc.kostat.go.kr` (HTML 인터액티브 검색 verify 용).
-- 미러: `github.com/FinanceData/KSIC` (`KSIC_10.csv.gz`, `2026-04-28` 다운로드분
-  SHA256 prefix `c77ad1963d83e144`).
+- 미러: `github.com/FinanceData/KSIC` (`2026-04-28` 다운로드분 — 미러는
+  `KSIC_10.csv.gz` 로 제공. `gunzip KSIC_10.csv.gz` → uncompressed
+  `ksic_10.csv` SHA256 prefix `c77ad1963d83e144`).
 - verify 완료: 본 마이그레이션 기재 170 unique KSIC 코드 모두 primary directory
-  존재 — 작성 시 100% match. KSIC 11차 개정 등 directory 변경 시 SHA256 prefix
-  로 본 evidence 의 source 판본 식별 가능.
+  존재 — 작성 시 100% match. KSIC 11차 개정 등 directory 변경 시 위 SHA256
+  prefix (uncompressed `ksic_10.csv`) 로 본 evidence 의 source 판본 식별 가능.
 
 `§3 line 34` alias collision 정책 + `§3 line 40` paren-balanced 마지막 괄호
 블록 적재 정책 충실. 0007 baseline 의 `aliases = ARRAY[name]` /
