@@ -37,7 +37,7 @@
   [tech.ai_ml.nlp] 자연어처리 (NLP, natural language processing, 자연어, 텍스트마이닝, 한국어처리)
   [stage.early] 창업 초기 (3년 이내) (창업 초기, early stage, 스타트업, ...)
   ```
-- DB `aliases` 배열은 **마지막 괄호 블록**의 콤마 분리 항목을 그대로 적재 (`re.findall(r'\(([^()]*)\)', line)[-1].split(', ')` 패턴). 마지막 괄호 외 다른 괄호 (qualifier, 예: `(3년 이내)`) 는 `name` 의 일부로 보존 — alias 미포함. `name` 본체도 `aliases` 에 포함 (LLM 입력 시 alias 검색 통일).
+- DB `aliases` 배열은 **마지막 괄호 블록**의 콤마 분리 항목을 그대로 적재 — paren-balanced regex `r'\([^()]*(?:\([^()]*\)[^()]*)*\)'` 의 마지막 매치 (1단 nested 까지 cover). non-recursive `\(([^()]*)\)` 는 nested qualifier 가 alias 안에 박힌 경우 (예: `(창업 초기 (3년 이내), 창업 초기, ...)`) 파싱 실패 — paren-balanced 필수. 마지막 괄호 블록 안 nested qualifier paren (예: alias 가 `'창업 초기 (3년 이내)'` literal 인 경우) 은 그 alias entry 의 일부로 보존. 마지막 괄호 외 다른 괄호 (name 의 qualifier, 예: `[stage.early] 창업 초기 (3년 이내)` 의 `(3년 이내)`) 는 `name` 의 일부로 보존 — alias 미포함. `name` 본체도 `aliases` 에 포함 (LLM 입력 시 alias 검색 통일).
 
 ## 4. KSIC 매핑 방법론
 
