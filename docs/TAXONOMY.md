@@ -78,7 +78,7 @@
   ↑ 산업 무관, 단계 기준 노드
 ```
 
-위 코드는 §5 actual 에서 인용 — 0012 마이그레이션 작성 시 **통계청 KOSIS KSIC 10차 directory** 와 cross-check (출처: `kssc.kostat.go.kr` / `data.go.kr` 의 KSIC 10차 분류표). 모든 4 자리 세분류가 5 자리 확장을 갖는 것은 아니므로 directory 에 존재하지 않는 코드는 4 자리 (세분류) 또는 3 자리 (소분류) 로 교체.
+위 코드는 §5 actual 에서 인용 — 0012 마이그레이션 작성 시 **통계청 KOSIS KSIC 10차 directory** 와 cross-check (출처: `kssc.kostat.go.kr` / `data.go.kr` 의 KSIC 10차 분류표). 모든 4 자리 세분류가 5 자리 확장을 갖는 것은 아니므로 directory 에 존재하지 않는 코드는 §4.1 fallback 룰 따라 **3 자리 (소분류)** 또는 **2 자리 (중분류)** 로 교체.
 
 ### 4.3 책임 분리 (commit/PR SoT)
 

@@ -235,11 +235,24 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    # 신규 82 노드 DELETE — id 키 매칭 (§7.1 영구 불변 UUID).
-    op.execute(
+    bind = op.get_bind()
+    # 신규 82 노드 DELETE — id 키 매칭 (§7.1 영구 불변 UUID). rowcount 검증 —
+    # 부분 적용 시 silent pass 차단 (upgrade() 의 baseline UPDATE 가드와
+    # symmetric).
+    delete_result = bind.execute(
         _DELETE_NEW_SQL.bindparams(ids=[UUID(node_id) for node_id, *_ in _NEW_NODES])
     )
+    if delete_result.rowcount != len(_NEW_NODES):
+        raise RuntimeError(
+            f"신규 노드 DELETE 실패 — expected={len(_NEW_NODES)}, "
+            f"actual={delete_result.rowcount} (taxonomy 데이터 중간 상태 위험)"
+        )
     # baseline 18 노드 reset — 0007 원상 (`aliases = ARRAY[name]` /
-    # `industry_ksic_codes = []`). path 키로 매칭.
+    # `industry_ksic_codes = []`). path 키로 매칭. rowcount=1 검증.
     for path, name, _aliases, _ksic in _BASELINE_UPDATES:
-        op.execute(_RESET_BASELINE_SQL.bindparams(path=path, name=name))
+        result = bind.execute(_RESET_BASELINE_SQL.bindparams(path=path, name=name))
+        if result.rowcount != 1:
+            raise RuntimeError(
+                f"baseline RESET 실패 — path={path!r}, rowcount={result.rowcount} "
+                f"(taxonomy 데이터 중간 상태 위험)"
+            )
