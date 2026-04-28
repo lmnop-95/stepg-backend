@@ -209,8 +209,8 @@
 |----------|----------|------|
 | 디지털 헬스 SW / 헬스 플랫폼 / 원격진료 SaaS | `tech.bio.digital_health` | SW/플랫폼 제공자 측면 |
 | 의료/헬스 운영 서비스 / 클리닉 / 종합건강관리 서비스 | `biz.healthcare_service` | 운영 서비스 측면 |
-| 친환경 / 재생 소재 R&D / 바이오플라스틱 | `tech.cleantech.material` | 원료/소재 R&D |
-| 반도체 / 부품 / 소재가공 / 장비 | `tech.manufacturing.material_parts` | 부품·장비/가공 |
+| 재생/친환경 소재 / 바이오플라스틱 / 배터리 셀 / 양극재 / 음극재 / 전해질 | `tech.cleantech.material` | 친환경·재생·배터리 셀/소재 R&D 측면 |
+| 일반 산업 부품 / 정밀부품 / 반도체 소재 / 장비 / 소재가공 | `tech.manufacturing.material_parts` | 제조/장비 측면 |
 | 게임엔진 / 그래픽스 / Unreal / Unity 라이센스 | `tech.xr_gaming.gameengine` | 엔진/툴체인 측면 |
 | 게임 콘텐츠 / 배급 / IP / 게임 스튜디오 | `biz.content_media.game` | 콘텐츠/배급 측면 |
 | 의료기기 제조 / 진단기기 / GMP | `tech.bio.medtech` | 기기 제조 측면 |
@@ -221,10 +221,7 @@
 | 일반 마켓플레이스 (관광·여행 외) | `biz.b2c_ecommerce.platform` | 일반 commerce |
 | 마켓플레이스 결제 모듈 / 임베디드 PG | `biz.fintech.payment` | 결제 도메인 우선 |
 | 외부 PG 사용 단순 결제 페이지 | `biz.b2c_ecommerce.platform` | 본업이 commerce 인 경우 |
-| 배터리 셀 / 양극재 / 음극재 / 전해질 | `tech.cleantech.material` | 셀·소재 R&D |
-| 배터리 + 발전·충전 시스템 통합 / ESS | `tech.cleantech.energy` | 에너지 시스템 |
-| 재생/친환경/배터리 셀·소재 R&D | `tech.cleantech.material` | 친환경 측면 |
-| 일반 산업 부품 / 정밀부품 / 반도체 소재 / 장비 / 소재가공 | `tech.manufacturing.material_parts` | 제조/장비 측면 |
+| 배터리 + 발전·충전 시스템 통합 / ESS | `tech.cleantech.energy` | 에너지 시스템 (셀·소재는 위 cleantech.material row) |
 
 **(b) 단일 노드 cross-axis — 양쪽 다 박기 허용**
 
