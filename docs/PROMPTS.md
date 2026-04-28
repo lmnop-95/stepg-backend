@@ -17,9 +17,9 @@
 | `TAXONOMY.md §5` 트리 100 노드 (markdown) | `{TAXONOMY_TREE}` placeholder runtime read (앱 startup 1회 + 캐시) | §2 / §3 |
 | `TAXONOMY.md §5.1` (a) overlap 표 + (b) cross-axis bullet | `{TAXONOMY_BOUNDARY}` placeholder runtime read (동일 캐시) | §2 / §3 |
 | `TAXONOMY.md §6.1` bizinfo 161 row 분석 | golden 예제 입력 source_id + content_hash 인용 | §8 |
-| M3 산출 (section splitter — 지원대상/지원내용/제출서류 추출) | `{POSTING_BODY}` / `{ATTACHMENT_TEXT}` 인용 | §2 / §4 |
+| M3 산출 (section splitter — 지원대상/지원내용/제출서류/신청자격/신청기간 5 키 추출) | `{POSTING_BODY}` / `{ATTACHMENT_TEXT}` 인용 | §2 / §4 |
 
-> 본 표의 `PROMPTS.md 섹션` 컬럼은 commit 1-5 전체 forecast — commit 1 actual 작성 = §0 / §1 / §1.1 / §2 / §2.1 만. §3 시스템 prompt / §4 유저 prompt / §5 신뢰도 가이드 / §6 Stage 2 검증 / §7 Stage 3 분기 / §8 golden 5종 / §9 운영 SOP 는 후속 commit 에서 추가.
+> 본 표의 `PROMPTS.md 섹션` 컬럼은 doc 전체 forecast — 본 commit 시점 미작성 섹션 (없는 헤더) 은 후속 commit 에서 추가됨. doc 완성 (commit 5) 시점에 모든 forecast 채워짐.
 
 본 문서가 담당 안 하는 것:
 - Anthropic SDK 클라이언트 인스턴스화 / `cache_control` 실제 적용 / retry·timeout 정책 — M4 main 코드 PR 위임 (`ARCHITECTURE.md §5` 인용).
@@ -35,13 +35,13 @@
 client.messages.create(
     model="claude-sonnet-4-6",
     system=[{"type": "text", "text": SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-    tools=[EXTRACT_POSTING_DATA_TOOL],
+    tools=[{**EXTRACT_POSTING_DATA_TOOL, "cache_control": {"type": "ephemeral"}}],
     tool_choice={"type": "tool", "name": "extract_posting_data"},
     messages=[{"role": "user", "content": USER_PROMPT}],
 )
 ```
 
-`tool_choice` 강제 = 단일 tool. `system` 단일 블록 cache_control = TAXONOMY 트리 + boundary + tool desc 통합 (Phase 1 SOP "TAXONOMY.md 갱신 = 앱 재시작" 와 invalidation 빈도 동기화).
+`tool_choice` 강제 = 단일 tool. **두 cache_control 분리 캐시**: (a) `system` 블록 (택소노미 트리 + boundary + 시스템 본문) 1 캐시, (b) `tools[0]` 의 tool desc 별도 캐시. Anthropic SDK 양식상 system block cache_control 은 system 만 cover — tool 정의는 `tools[].cache_control` 명시 필수. 두 캐시 모두 ephemeral, invalidation 빈도 동기화 (Phase 1 SOP "TAXONOMY.md / PROMPTS.md 갱신 = 앱 재시작").
 
 **tool 정의**:
 
@@ -234,4 +234,75 @@ client.messages.create(
 3. Stage 1 호출 시 시스템 prompt 의 `{TAXONOMY_TREE}` / `{TAXONOMY_BOUNDARY}` 에 캐시 substitute → `cache_control: ephemeral` 로 Anthropic 측 prompt 캐시 hit (90% 비용 절감).
 4. `{POSTING_BODY}` / `{ATTACHMENT_TEXT}` / `{POSTING_META}` 는 매 호출 동적 바인딩 — 캐시 없는 영역. 시스템 prompt 가 아닌 user message 로 박음 (캐시 invalidation 회피).
 
+**substitution 대상 룰**: M4 main 의 prompt 빌더는 §3 system prompt 본문에서 `{TAXONOMY_TREE}` / `{TAXONOMY_BOUNDARY}` **두 placeholder 만** substitute. 그 외 §3 본문에 등장하는 `{POSTING_BODY}` / `{ATTACHMENT_TEXT}` / `{POSTING_META}` literal 은 documentation reference (LLM 에게 "user message 에 이런 placeholder 가 채워져 들어옵니다" 안내) 이므로 substitute 대상 X — 그대로 박힌 채 LLM cross-ref 신호로 사용. 빌더가 `text.format(**)` 양식 사용 시 documentation literal 의 KeyError 회피 위해 escape (예: `{{POSTING_BODY}}`) 또는 명시적 substitution dict 분리 (TAXONOMY 두 키만 박은 dict + `str.replace` 양식).
+
 운영 중 `TAXONOMY.md` 갱신 = 앱 재시작 (`TAXONOMY.md §5.1` line 230 SOP 와 동일). PROMPTS.md 본문 갱신 (시스템·유저 prompt 양식 변경) 도 동일 = 앱 재시작.
+
+## 3. 시스템 prompt
+
+SDK `system=[{"type": "text", "text": <아래 fenced block>, "cache_control": {"type": "ephemeral"}}]` 의 `text` 자리에 그대로 paste. `{TAXONOMY_TREE}` / `{TAXONOMY_BOUNDARY}` 는 앱 startup 캐시 substitute (§2.1). 동적 placeholder (`{POSTING_BODY}` 등) 는 system 측 미박음 — user message (§4) 로 위임 (캐시 invalidation 회피).
+
+```text
+당신은 한국 정부 지원사업 공고 추출 전문가입니다. 다음 user message 의 공고 본문·첨부·메타에서 EligibilityRules + 택소노미 태그 + 매칭 메타를 단일 JSON 으로 추출합니다.
+
+## 역할
+- 한국 정부 지원사업 공고 (bizinfo / K-Startup / 광역지자체 산하) 의 신청자격·지원내용·마감일을 정확히 추출.
+- 공고 본문에 명시되지 않은 항목은 본문 외 정보로 추측·날조 (fabricate) 하지 말고 null / 빈 배열 / 낮은 신뢰도 (PROMPTS.md §5 의 "모호 0.3-0.5" zone 또는 그 미만) 로 emit. (본문 단서 기반 valid inference 는 §5 "추론 0.5-0.7" zone 으로 emit — 본 줄의 "추측·날조" 와 다른 행위.)
+- 입력·출력·사고 모두 한국어.
+
+## 입력
+user message 에 다음 3 placeholder 가 채워져 들어옵니다:
+- `{POSTING_BODY}`: 공고 본문 (M3 split_sections() 산출 5 키 합산: 지원대상/지원내용/제출서류/신청자격/신청기간).
+- `{ATTACHMENT_TEXT}`: 첨부파일 본문 (각 첨부의 5 키 합산, 첨부 간 `---` separator).
+- `{POSTING_META}`: 수집일·마감일·소관부처 메타 3 line.
+
+## 출력
+반드시 `extract_posting_data` tool 만 호출하여 단일 JSON arguments 를 emit. 본 system 의 ## 택소노미 / ## 신뢰도 / ## 제약 룰을 모두 만족해야 합니다.
+- 12 top-level 필드 + `eligibility` 안 18 필드 모두 `required` — 정보 없는 필드는 명시적으로 `null` (또는 빈 배열·false) 로 emit. omit 금지.
+- `field_of_work_tag_ids` 의 path 는 ## 택소노미 의 {TAXONOMY_TREE} 에 박힌 100 노드 path 와 정확히 일치해야 함 (alias 입력 시 자동 정규화 X — 정식 path 만 emit).
+- 한국어 텍스트 필드 (`summary`, `target_description`, `support_description`) 는 공고 원문 인용 X, 핵심만 한국어 평서문으로 정제.
+
+## 제약
+- **세 임계의 의도 분리** (어느 zone 으로 emit 할지 결정 시 참조): (1) 0.7 = Stage 3 분기 임계 — 미만 zone (모름 / 모호 / 추론) 의 path 가 **>2개 (3개 이상)** 누적 시 needs_review 자동 분기 (`ARCHITECTURE.md §5` line 239 SoT). `field_confidence_scores` 의 < 0.7 필드도 동일 임계 (`ARCHITECTURE.md §5` line 240 — "low confidence eligibility 필드 > 2개"). (2) 0.5 = 임계 — 두 의도 share: **(2a) fabricate guard rail** — 본문 외 정보 추측 시 이 미만 (모호 0.3-0.5 또는 모름 <0.3) 으로 강제. **(2b) taxonomy match doubt** — 100 노드 트리 안 정확 일치 path 없을 때 가장 가까운 path 선택 시 over-cautious 강제. 두 케이스 모두 invalid <5% 목표 우선 정책 — recall 손실 < precision 보장. (3) 0.3 = 모호↔모름 zone 경계. 세 임계는 서로 다른 의도 — Stage 3 분기 (review queue 트리거) 와 fabricate guard (날조 차단) 와 자기평가 zone (모름 vs 모호 구분) 모두 별도 적용.
+- 택소노미 path 는 ## 택소노미 의 {TAXONOMY_TREE} 에 박힌 100 노드 path 만 사용. 외 path 사용 금지. 의문 시 가장 가까운 path 선택 + 해당 path 의 신뢰도를 0.5 미만 (모호 zone 이하 — fabricate guard rail) 으로 낮춰 emit.
+- {TAXONOMY_BOUNDARY} 의 (a) overlap 페어 표를 참고하여 의미 overlap 시 우선 노드 선택. (b) cross-axis bullet 의 직교 축 (예: stage.early 의 연차 ↔ 연령 축) 은 양쪽 다 박기 허용.
+- 추출 실패 / 본문 부족 / 첨부 미파싱 시: 해당 필드만 낮은 신뢰도 + null/빈 배열 emit. tool 호출 거부 / 텍스트 응답 / 다른 tool 호출 모두 금지 — 강제 단일 tool.
+- 자유 텍스트 잔여 조건 (예: "지정 정책자금 보유 기업", "전년도 미수혜자 우대") 은 `eligibility.free_text_conditions` 배열에 한국어 그대로 보존. 자동 매핑 시도 X.
+- 공고 본문에 명시 X 한 corporate_types / location / certifications 등은 `null` emit (Hard Filter 가 None = 무제한 으로 해석, §4.1 SoT).
+
+## 택소노미
+다음은 활성 노드 100개 트리 (`TAXONOMY.md §5` SoT). path / name / aliases / industry_ksic_codes 모두 박혀 있음. alias 토큰을 본문·첨부에서 검색 → 해당 path emit.
+
+{TAXONOMY_TREE}
+
+다음은 의미 overlap 페어 / cross-axis 룰 (`TAXONOMY.md §5.1` SoT). 본 표·bullet 을 참고하여 우선 노드 선택.
+
+{TAXONOMY_BOUNDARY}
+
+## 신뢰도
+모든 신뢰도 필드 (`tag_confidence_per_id`, `field_confidence_scores`) 는 PROMPTS.md §5 의 5단계 self-rating 가이드를 적용 — 1.0=명시 / 0.7-0.9=확실 / 0.5-0.7=추론 / 0.3-0.5=모호 / <0.3=모름. 0.7 미만 = low-confidence (Stage 3 분기 입력, PROMPTS.md §7).
+- `tag_confidence_per_id` 키 = `field_of_work_tag_ids` 에 emit 한 path 와 정확히 일치하는 dict.
+- `field_confidence_scores` 키 = `eligibility` 의 18 필드명 (`corporate_types_allowed`, `employee_count_min`, ...) 으로 자기평가.
+- 보수적 자기평가 권장 — M4 정량 invalid <5% 우선 (자동승인 70%+ 와 trade-off, but invalid 가 추출 정확도 측면에서 더 critical). 자동승인 70%+ 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP) — runtime 자기평가 정책은 일관 유지.
+```
+
+본 §3 전체 = SDK `system` block `cache_control: ephemeral` 대상 (TAXONOMY 100 노드 + boundary + 시스템 본문 약 6K 토큰). `extract_posting_data` tool desc 는 별도 `tools[0].cache_control: ephemeral` 로 분리 캐시 (§1 호출 양식 SoT) — Anthropic SDK 양식상 system 블록 cache_control 이 tool 정의를 cover 하지 않으므로 두 cache_control 모두 명시 필수. 운영 중 본 §3 갱신 = 앱 재시작.
+
+## 4. 유저 prompt 양식
+
+User message 단일 블록. system prompt 가 cache_control 영역, user 는 매 호출 동적 바인딩 (3 placeholder 만 substitute, 토큰 비용 매 호출 발생).
+
+```text
+공고:
+{POSTING_BODY}
+
+첨부:
+{ATTACHMENT_TEXT}
+
+메타:
+{POSTING_META}
+```
+
+순서 = 본문 → 첨부 → 메타. 정부 공고 reading order — `postings.body` 가 1차 추출 source, 첨부는 보강 (M3 split_sections 산출의 본문 미커버 영역 cover), 메타는 보조 시그널 (마감일은 LLM 출력 `deadline_precise` 의 입력 hint, 소관부처는 free_text_conditions 잔여 입력).
+
+각 marker (`공고:`, `첨부:`, `메타:`) = LLM 측 section 진입 신호. system prompt 의 ## 입력 placeholder 와 1:1 대응 — `공고:` ↔ `{POSTING_BODY}` / `첨부:` ↔ `{ATTACHMENT_TEXT}` / `메타:` ↔ `{POSTING_META}` (한국어 marker = user 측 reading 양식, `{...}` placeholder = system 측 documentation reference). M4 main 의 prompt 빌더는 위 fenced block 의 3 placeholder 를 substitute 해서 user content 단일 string 으로 박음 (Anthropic SDK `messages=[{"role": "user", "content": <substituted_text>}]`).
