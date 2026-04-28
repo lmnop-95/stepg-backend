@@ -55,8 +55,8 @@ class Settings(BaseSettings):
         description="Anthropic model ID for M4 extraction. Staging/prod 검증 시 모델 교체 가능.",
     )
     openai_api_key: SecretStr | None = None
-    clova_ocr_url: str | None = None
-    clova_ocr_secret: SecretStr | None = None
+    clova_ocr_bizlicense_invoke_url: str | None = None
+    clova_ocr_bizlicense_secret: SecretStr | None = None
 
     bizinfo_api_key: SecretStr | None = None
     data_go_kr_service_key: SecretStr | None = None
