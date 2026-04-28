@@ -46,6 +46,7 @@ build/
 
 # Claude Code — personal settings (skills are committed)
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # Daily-loop working directory (per-branch critic/PR/plan/coderabbit drafts)
 docs/.local/
