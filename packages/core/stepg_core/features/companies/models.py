@@ -1,7 +1,10 @@
+from datetime import date
+
 from sqlalchemy import (
     ARRAY,
     BigInteger,
     CheckConstraint,
+    Date,
     ForeignKey,
     Integer,
     String,
@@ -41,6 +44,9 @@ class Company(Base, TimestampMixin):
     )
     biz_reg_no: Mapped[str] = mapped_column(String(10), nullable=False, unique=True)
     corporate_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    established_on: Mapped[date | None] = mapped_column(
+        Date, nullable=True
+    )  # §8.2 / pitfalls D — DATE 강제 (TIMESTAMPTZ 면 FE -1d 표시 사고)
     employee_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     revenue_last_year: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     sido: Mapped[str] = mapped_column(String(16), nullable=False)
