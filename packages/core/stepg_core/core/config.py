@@ -37,7 +37,11 @@ class Settings(BaseSettings):
 
     storage_root: Path = Field(default=_DEFAULT_STORAGE_ROOT)
 
-    pdf_ocr_fallback_min_chars_per_page: int = Field(default=50, ge=0)
+    pdf_ocr_fallback_min_chars_per_page: int = Field(
+        default=50,
+        ge=0,
+        description="페이지 추출 글자수 < 임계 시 OCR fallback. 0 = OCR 비활성화 (dev escape hatch).",
+    )
 
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None

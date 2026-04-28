@@ -77,7 +77,7 @@ def _ocr_page_text(page: Page) -> str | None:
                 _OCR_PAGE_TIMEOUT_SECONDS,
             )
             return None
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — page-skip policy by design (Q3)
             # easyocr 의 다양한 raise(model OOM/decode error/CUDA glitch 등)
             # 를 page-skip 으로 demote — timeout 과 동일한 attachment 보존 정책 (Q3 critic Pass 4).
             logger.warning(
