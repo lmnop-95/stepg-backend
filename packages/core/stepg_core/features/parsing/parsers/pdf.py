@@ -8,11 +8,14 @@
 시 모델 (수백 MB) 다운로드 — dev 첫 실행은 plan Q9 의 사전 cache cli 권장
 (`uv run python -c 'import easyocr; easyocr.Reader(["ko","en"], gpu=False)'`).
 
-per-page OCR timeout 120s — `concurrent.futures.ThreadPoolExecutor` +
-`future.result(timeout)`. timeout / OCR 자체 raise (모델 OOM/decode/etc) 모두
-그 페이지 skip + WARN log, 나머지 페이지 진행 (Q28). attachment 단위 fail 정책은
-caller(commit 6 `parse_attachments`) broad except 로 시 계층화 (timeout 외
-predicate-와 통일된 page-skip 정책).
+per-page OCR soft timeout 120s — `concurrent.futures.ThreadPoolExecutor` +
+`future.result(timeout)` + `shutdown(wait=False, cancel_futures=True)`. caller는
+즉시 page-skip 으로 return하지만 Python은 running thread 강제 종료 불가라 OCR
+thread는 detach 되어 자연 완료 (attachment 단위 bounded leak). timeout / OCR
+자체 raise (모델 OOM/decode/etc) 모두 그 페이지 skip + WARN log, 나머지 페이지
+진행 (Q28). attachment 단위 fail 정책은 caller(commit 6 `parse_attachments`)
+broad except 로 시 계층화. hard timeout이 필요하면 multiprocessing 분리 (Phase
+1.5 — `process.terminate()` 가능).
 
 PDF → image 변환은 `pdfplumber.Page.to_image(resolution=200).original` (PIL
 Image) → `BytesIO` PNG 직렬화 후 easyocr 에 bytes 전달 (Q29). numpy 직접
@@ -66,13 +69,19 @@ def _ocr_page_text(page: Page) -> str | None:
             reader.readtext(payload, detail=0, paragraph=True),  # pyright: ignore[reportUnknownMemberType]
         )
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+    # `with ...` block exit가 default `shutdown(wait=True)`로 thread 종료 대기 →
+    # timeout이 사실상 무효화. 명시적 instance + finally `shutdown(wait=False,
+    # cancel_futures=True)`로 caller 즉시 return 보장 (CR #3151062454).
+    # 미시작 task는 cancel, 이미 실행 중인 thread는 detach (Python thread 강제
+    # 종료 불가) — attachment 단위 bounded thread leak는 Phase 1 수용.
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    try:
         future = executor.submit(_run_ocr)
         try:
             result = future.result(timeout=_OCR_PAGE_TIMEOUT_SECONDS)
         except concurrent.futures.TimeoutError:
             logger.warning(
-                "pdf_ocr_page_timeout page=%d timeout=%.1fs",
+                "OCR 페이지 timeout — page=%d budget=%.1fs",
                 page.page_number,
                 _OCR_PAGE_TIMEOUT_SECONDS,
             )
@@ -81,12 +90,14 @@ def _ocr_page_text(page: Page) -> str | None:
             # easyocr 의 다양한 raise(model OOM/decode error/CUDA glitch 등)
             # 를 page-skip 으로 demote — timeout 과 동일한 attachment 보존 정책 (Q3 critic Pass 4).
             logger.warning(
-                "pdf_ocr_page_failed page=%d cause=%s: %s",
+                "OCR 페이지 실패 — page=%d cause=%s: %s",
                 page.page_number,
                 type(exc).__name__,
                 exc,
             )
             return None
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
     return "\n\n".join(result)
 
 
