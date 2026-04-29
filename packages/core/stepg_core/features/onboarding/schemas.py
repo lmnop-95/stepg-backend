@@ -187,10 +187,16 @@ class OnboardingCompleteRequest(BaseModel):
 
 
 class OnboardingCompleteResponse(BaseModel):
-    """commit 7 응답 — `company_id` 반환. commit 8 가 `project_id` 추가."""
+    """`POST /onboarding/complete` 응답 — Company + default Project 식별자.
+
+    commit 7 = `company_id` 만, commit 8 = `project_id` 추가 (단일 atomic tx).
+    M6 매칭 엔진 (`/recommendations`) 이 default Project 를 활용 시 client 가
+    follow-up GET 없이 바로 사용.
+    """
 
     model_config = ConfigDict(frozen=True)
     company_id: int
+    project_id: int
 
 
 __all__ = ["OcrBizRegResponse", "OnboardingCompleteRequest", "OnboardingCompleteResponse"]

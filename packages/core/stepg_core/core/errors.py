@@ -85,10 +85,26 @@ class OcrCallError(Exception):
         self.http_status = http_status
 
 
+class OnboardingError(Exception):
+    """Domain-level onboarding failure raised by the service layer (Q52).
+
+    `code` is a stable snake_case identifier (Q8 convention) — the route layer
+    maps it to a Korean detail via `_ONBOARDING_DOMAIN_ERROR_KO`. Distinct from
+    `IntegrityError` (Postgres UNIQUE violation): `OnboardingError` covers
+    pre-write validation that can fail without touching the DB write path
+    (currently `fields_of_work_invalid` — input UUID 가 미존재 / deprecated).
+    """
+
+    def __init__(self, *, code: str) -> None:
+        super().__init__(f"OnboardingError(code={code})")
+        self.code = code
+
+
 __all__ = [
     "BizinfoSchemaError",
     "HttpFetchError",
     "MissingApiKeyError",
     "OcrCallError",
+    "OnboardingError",
     "UnsupportedAttachmentFormatError",
 ]

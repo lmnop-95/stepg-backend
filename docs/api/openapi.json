@@ -294,15 +294,20 @@
         "type": "object"
       },
       "OnboardingCompleteResponse": {
-        "description": "commit 7 \uc751\ub2f5 \u2014 `company_id` \ubc18\ud658. commit 8 \uac00 `project_id` \ucd94\uac00.",
+        "description": "`POST /onboarding/complete` \uc751\ub2f5 \u2014 Company + default Project \uc2dd\ubcc4\uc790.\n\ncommit 7 = `company_id` \ub9cc, commit 8 = `project_id` \ucd94\uac00 (\ub2e8\uc77c atomic tx).\nM6 \ub9e4\uce6d \uc5d4\uc9c4 (`/recommendations`) \uc774 default Project \ub97c \ud65c\uc6a9 \uc2dc client \uac00\nfollow-up GET \uc5c6\uc774 \ubc14\ub85c \uc0ac\uc6a9.",
         "properties": {
           "company_id": {
             "title": "Company Id",
             "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
           }
         },
         "required": [
-          "company_id"
+          "company_id",
+          "project_id"
         ],
         "title": "OnboardingCompleteResponse",
         "type": "object"
@@ -375,7 +380,7 @@
     },
     "/onboarding/complete": {
       "post": {
-        "description": "OCR \uac80\uc218 \uc644\ub8cc input \uc73c\ub85c `Company` 1\uac74 \uc801\uc7ac (commit 7).\n\n`fields_of_work_ids` \ub294 input contract \uc5d0 \ud3ec\ud568\ub418\ub098 commit 7 \uc5d0\uc11c\ub294\nPydantic validate (3\uac1c unique) \ub9cc \u2014 commit 8 \uac00 default `Project` \uc0dd\uc131 +\n`project_fields_of_work` M2M \uc0bd\uc785\uc5d0 \uc0ac\uc6a9. commit 8 \uc2dc\uc810\uc5d0 \uc774 route \uc758\n\uc751\ub2f5\uc774 `{company_id, project_id}` \ub85c \ud655\uc7a5 + service \uac00 atomic tx wrap.\n\nNextAuth JWT \uc778\uc99d\uc740 commit 9 \uac00 `auth/deps.py::get_current_user_id` \uc758\nbody \ub97c swap \ud558\uc5ec \ucd94\uac00 (route \uc2dc\uadf8\ub2c8\ucc98 \ubcc0\ub3d9 \uc5c6\uc74c, Q37).\n\n`Company` \uc758 UNIQUE \uc81c\uc57d (`biz_reg_no` / `user_id`) \uc704\ubc18\uc740 \uc815\uc0c1 \uc2dc\ub098\ub9ac\uc624\n(FE \uc911\ubcf5 \ud074\ub9ad / \ub3d9\uc77c \uc0ac\uc5c5\uc790\ubc88\ud638 / `DEV_USER_ID=1` \ubc18\ubcf5) \uc5d0\uc11c \ubc1c\ud654 \u2014 500\n\uc73c\ub85c \ub204\uc124\ud558\uc9c0 \uc54a\uace0 409 + ko-KR detail (Q1 pass5).",
+        "description": "OCR \uac80\uc218 \uc644\ub8cc input \uc73c\ub85c `Company` + default `Project` + M2M \uc801\uc7ac.\n\nService (`complete_onboarding`) \uac00 `async with session.begin():` \uc73c\ub85c\nCompany / Project / `project_fields_of_work` \uc801\uc7ac \uc804\uccb4\ub97c atomic \ub2e8\uc704\ub85c\n\uac10\uc2fc\ub2e4 (Q54). \ub530\ub77c\uc11c route \ub294 commit / rollback \uc744 \uba85\uc2dc\uc801\uc73c\ub85c \ud638\ucd9c\ud558\uc9c0\n\uc54a\uc73c\uba70 IntegrityError catch \uc2dc\uc5d0\ub3c4 begin block \uac00 \uc774\ubbf8 rollback \ud55c \uc0c1\ud0dc.\n\nNextAuth JWT \uc778\uc99d\uc740 commit 9 \uac00 `auth/deps.py::get_current_user_id` \uc758\nbody \ub97c swap \ud558\uc5ec \ucd94\uac00 (route \uc2dc\uadf8\ub2c8\ucc98 \ubcc0\ub3d9 \uc5c6\uc74c, Q37).\n\n\uc624\ub958 \ubd84\uae30:\n- `Company` UNIQUE \uc704\ubc18 (`biz_reg_no` / `user_id`) \u2192 409 ko-KR (Q1 pass5)\n- `OnboardingError(\"fields_of_work_invalid\")` \u2192 422 ko-KR (Q52). \uc0ac\uc804\n  SELECT validate \uac00 atomic tx \uc9c4\uc785 \uc804 \ucc28\ub2e8.",
         "operationId": "post_complete_onboarding_complete_post",
         "requestBody": {
           "content": {

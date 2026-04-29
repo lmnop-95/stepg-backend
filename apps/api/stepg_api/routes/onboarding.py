@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Final
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 from stepg_core.core.db import get_session
-from stepg_core.core.errors import OcrCallError
+from stepg_core.core.errors import OcrCallError, OnboardingError
 from stepg_core.features.onboarding.schemas import (
     OcrBizRegResponse,
     OnboardingCompleteRequest,
@@ -92,6 +92,13 @@ _ONBOARDING_ERROR_KO: Final[dict[str, str]] = {
     "user_onboarding_exists": "이미 온보딩을 완료한 사용자입니다.",
 }
 _ONBOARDING_FALLBACK_KO: Final[str] = "온보딩 처리 중 충돌이 발생했습니다."
+
+# Q52 — service 단 사전 validate 가 raise 한 `OnboardingError` 매핑.
+# IntegrityError (DB UNIQUE 위반 → 409) 와 별도 — domain 검증 실패는 422.
+_ONBOARDING_DOMAIN_ERROR_KO: Final[dict[str, str]] = {
+    "fields_of_work_invalid": "관심분야 선택이 올바르지 않습니다. 다시 선택해주세요.",
+}
+_ONBOARDING_DOMAIN_FALLBACK_KO: Final[str] = "온보딩 입력값이 올바르지 않습니다."
 
 
 def _to_http_exception(e: OcrCallError) -> HTTPException:
@@ -172,25 +179,32 @@ async def post_complete(
     user_id: int = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_session),
 ) -> OnboardingCompleteResponse:
-    """OCR 검수 완료 input 으로 `Company` 1건 적재 (commit 7).
+    """OCR 검수 완료 input 으로 `Company` + default `Project` + M2M 적재.
 
-    `fields_of_work_ids` 는 input contract 에 포함되나 commit 7 에서는
-    Pydantic validate (3개 unique) 만 — commit 8 가 default `Project` 생성 +
-    `project_fields_of_work` M2M 삽입에 사용. commit 8 시점에 이 route 의
-    응답이 `{company_id, project_id}` 로 확장 + service 가 atomic tx wrap.
+    Service (`complete_onboarding`) 가 `async with session.begin():` 으로
+    Company / Project / `project_fields_of_work` 적재 전체를 atomic 단위로
+    감싼다 (Q54). 따라서 route 는 commit / rollback 을 명시적으로 호출하지
+    않으며 IntegrityError catch 시에도 begin block 가 이미 rollback 한 상태.
 
     NextAuth JWT 인증은 commit 9 가 `auth/deps.py::get_current_user_id` 의
     body 를 swap 하여 추가 (route 시그니처 변동 없음, Q37).
 
-    `Company` 의 UNIQUE 제약 (`biz_reg_no` / `user_id`) 위반은 정상 시나리오
-    (FE 중복 클릭 / 동일 사업자번호 / `DEV_USER_ID=1` 반복) 에서 발화 — 500
-    으로 누설하지 않고 409 + ko-KR detail (Q1 pass5).
+    오류 분기:
+    - `Company` UNIQUE 위반 (`biz_reg_no` / `user_id`) → 409 ko-KR (Q1 pass5)
+    - `OnboardingError("fields_of_work_invalid")` → 422 ko-KR (Q52). 사전
+      SELECT validate 가 atomic tx 진입 전 차단.
     """
     try:
-        company = await complete_onboarding(session, request, user_id)
-        await session.commit()
+        company, project = await complete_onboarding(session, request, user_id)
+    except OnboardingError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": e.code,
+                "message": _ONBOARDING_DOMAIN_ERROR_KO.get(e.code, _ONBOARDING_DOMAIN_FALLBACK_KO),
+            },
+        ) from e
     except IntegrityError as e:
-        await session.rollback()
         code = _classify_onboarding_integrity_error(e)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -199,7 +213,7 @@ async def post_complete(
                 "message": _ONBOARDING_ERROR_KO.get(code, _ONBOARDING_FALLBACK_KO),
             },
         ) from e
-    return OnboardingCompleteResponse(company_id=company.id)
+    return OnboardingCompleteResponse(company_id=company.id, project_id=project.id)
 
 
 __all__ = ["router"]
