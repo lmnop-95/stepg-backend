@@ -264,7 +264,7 @@ user message 에 다음 3 placeholder 가 채워져 들어옵니다:
 
 ## 제약
 - **세 임계의 의도 분리** (어느 zone 으로 emit 할지 결정 시 참조): (1) 0.7 = Stage 3 분기 임계 — 미만 zone (모름 / 모호 / 추론) 의 path 가 **>2개 (3개 이상)** 누적 시 needs_review 자동 분기 (`ARCHITECTURE.md §5` line 239 SoT). `field_confidence_scores` 의 < 0.7 필드도 동일 임계 (`ARCHITECTURE.md §5` line 240 — "low confidence eligibility 필드 > 2개"). (2) 0.5 = 임계 — 두 의도 share: **(2a) fabricate guard rail** — 본문 외 정보 추측 시 이 미만 (모호 0.3-0.5 또는 모름 <0.3) 으로 강제. **(2b) taxonomy match doubt** — 100 노드 트리 안 정확 일치 path 없을 때 가장 가까운 path 선택 시 over-cautious 강제. 두 케이스 모두 invalid <5% 목표 우선 정책 — recall 손실 < precision 보장. (3) 0.3 = 모호↔모름 zone 경계. 세 임계는 서로 다른 의도 — Stage 3 분기 (review queue 트리거) 와 fabricate guard (날조 차단) 와 자기평가 zone (모름 vs 모호 구분) 모두 별도 적용.
-- 택소노미 path 는 ## 택소노미 의 {TAXONOMY_TREE} 에 박힌 100 노드 path 만 사용. 외 path 사용 금지. 의문 시 가장 가까운 path 선택 + 해당 path 의 신뢰도를 0.5 미만 (모호 zone 이하 — fabricate guard rail) 으로 낮춰 emit.
+- 택소노미 path 는 ## 택소노미 의 {TAXONOMY_TREE} 에 박힌 100 노드 path 만 사용. 외 path 사용 금지. 의문 시 단서 강도 별 분기: **강한 단서 + 부분일치** (본문 도메인 키워드 명시 + 100 노드 안 정확 일치 X) = 가장 가까운 path 선택 + 추론 zone `[0.5, 0.7)` emit. **약한 단서 + 가장 가까운 path** = 모호 zone `[0.3, 0.5)` emit (fabricate guard rail 발동). zone 분류는 PROMPTS.md §5 SoT.
 - {TAXONOMY_BOUNDARY} 의 (a) overlap 페어 표를 참고하여 의미 overlap 시 우선 노드 선택. (b) cross-axis bullet 의 직교 축 (예: stage.early 의 연차 ↔ 연령 축) 은 양쪽 다 박기 허용.
 - 추출 실패 / 본문 부족 / 첨부 미파싱 시: 해당 필드만 낮은 신뢰도 + null/빈 배열 emit. tool 호출 거부 / 텍스트 응답 / 다른 tool 호출 모두 금지 — 강제 단일 tool.
 - 자유 텍스트 잔여 조건 (예: "지정 정책자금 보유 기업", "전년도 미수혜자 우대") 은 `eligibility.free_text_conditions` 배열에 한국어 그대로 보존. 자동 매핑 시도 X.
@@ -306,3 +306,27 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 순서 = 본문 → 첨부 → 메타. 정부 공고 reading order — `postings.body` 가 1차 추출 source, 첨부는 보강 (M3 split_sections 산출의 본문 미커버 영역 cover), 메타는 보조 시그널 (마감일은 LLM 출력 `deadline_precise` 의 입력 hint, 소관부처는 free_text_conditions 잔여 입력).
 
 각 marker (`공고:`, `첨부:`, `메타:`) = LLM 측 section 진입 신호. system prompt 의 ## 입력 placeholder 와 1:1 대응 — `공고:` ↔ `{POSTING_BODY}` / `첨부:` ↔ `{ATTACHMENT_TEXT}` / `메타:` ↔ `{POSTING_META}` (한국어 marker = user 측 reading 양식, `{...}` placeholder = system 측 documentation reference). M4 main 의 prompt 빌더는 위 fenced block 의 3 placeholder 를 substitute 해서 user content 단일 string 으로 박음 (Anthropic SDK `messages=[{"role": "user", "content": <substituted_text>}]`).
+
+## 5. 신뢰도 self-rating 가이드
+
+`ARCHITECTURE.md §5` line 229 SoT — Stage 1 LLM 자기평가의 5단계. zone 정의는 본 §5 SoT, system prompt 측 사용 사례·정책은 §3 ## 신뢰도 cross-ref (양방향 — §3 가 본 §5 인용 + 본 §5 가 §3 ## 신뢰도 / ## 제약 인용).
+
+| zone | 임계 | 의도 |
+|------|------|------|
+| 명시 | `1.0` | 공고 본문에 정확한 단어·숫자·날짜 그대로 등장 — 추출 = 그대로 인용. |
+| 확실 | `[0.7, 1.0)` | 본문 단서 + 한국 정부 지원사업 표준 도메인 지식으로 확실 추정 — 본문 외 정보 추가 X. (ARCHITECTURE.md §5 line 229 SoT "0.7-0.9=확실" 의 자연 한국어 의도 = high-conf zone 전체. 본 §5 는 명시 1.0 single point + 확실 [0.7, 1.0) 으로 [0, 1.0] clean partition.) |
+| 추론 | `[0.5, 0.7)` | 본문 단서 **강함** + 부분일치 — valid inference. 택소노미: 본문에 도메인 단서 명시 + 100 노드 트리 안 정확 일치 X (가장 가까운 path 선택). eligibility: 필드 간접 단서. fabricate 와 다른 zone — §3 ## 역할 의 "추측·날조" 경계는 본 zone 위. |
+| 모호 | `[0.3, 0.5)` | 본문 단서 **약함** + 가장 가까운 path 또는 보수적 추정. fabricate guard rail 발동 zone (§3 ## 제약 (2)). |
+| 모름 | `< 0.3` | 본문 단서 부재. 명시 emit 강제 (§1 / §1.1 의 모든 필드 `required` 박음 정책) — null / 빈 배열 / boolean false 와 함께 신뢰도는 본 zone. |
+
+**boundary 양식**: `ARCHITECTURE.md §5` line 239 답습 — half-open `[lo, hi)`. `< 0.7` 부터 low-confidence 시작 (정확히 0.7 = 확실 zone 의 inclusive 시작점, low-conf zone 의 exclusive upper 끝 — 0.7 자체는 확실 zone 에 포함). 1.0 단독 (명시), `[0.7, 1.0)` (확실), `[0.5, 0.7)` (추론), `[0.3, 0.5)` (모호), `< 0.3` (모름) — `[0, 1.0]` clean partition.
+
+**적용 차원**: 두 dict 모두 동일 5단계 — (a) `tag_confidence_per_id` (택소노미 path 별 zone, 키 = `field_of_work_tag_ids` 의 path 와 정확 일치), (b) `field_confidence_scores` (eligibility 18 필드 별 zone, 키 = §1.1 의 필드명).
+
+**low-confidence 정의**: `< 0.7` (확실 미만 zone — 추론 / 모호 / 모름). 두 dict 모두 동일 임계. Stage 3 분기 (PROMPTS.md §7) 의 needs_review 입력 — 태그 < 0.7 카운트 > 2개 OR 필드 < 0.7 카운트 > 2개 (`ARCHITECTURE.md §5` line 239-240 SoT). invalid path 처리 / Stage 2 검증 실패 분기 = §6 (commit 4) SoT — 본 §5 는 신뢰도 zone 정의만.
+
+**emit 강제 cross-ref**: §1 의 모든 nullable 필드 `required` 박음 → 모름 zone (`< 0.3`) 도 명시 emit (null / 빈 배열 / boolean false 값 + 본 zone 임계의 신뢰도). omit 금지 — dual encoding (omit vs null) 회피 = LLM 동작 결정성 + eval / M9 audit log 분석 일관성.
+
+**보수적 self-rating 정책**: §3 ## 신뢰도 본문이 SoT — invalid <5% 우선 (자동승인 70%+ 와 trade-off). 의문 시 낮춰 emit (모호·모름 zone 으로 강제). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP) — runtime 자기평가 정책은 일관 유지.
+
+**보정 (calibration)**: Phase 1 SOP — 운영 중 신뢰도 분포 (zone 사용 빈도) 측정 → prompt 보강 / 택소노미 누락 노드·aliases 보강 (`ARCHITECTURE.md §9` line 409). zone 정의 자체 변경 = 본 §5 갱신 + 앱 재시작 (§2.1 동일 SOP). Phase 1.5 — 운영 데이터 기반 zone 임계 calibration 검토 (자동승인 70%+ 미달 시 임계 조정 / zone 비율 재배분).
