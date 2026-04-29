@@ -1588,6 +1588,7 @@ version = "0.0.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "pyjwt" },
     { name = "python-multipart" },
     { name = "stepg-core" },
     { name = "uvicorn", extra = ["standard"] },
@@ -1596,6 +1597,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.135" },
+    { name = "pyjwt", specifier = ">=2.10" },
     { name = "python-multipart", specifier = ">=0.0.18" },
     { name = "stepg-core", editable = "packages/core" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },

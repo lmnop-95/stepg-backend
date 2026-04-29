@@ -1,12 +1,15 @@
-"""M5-api onboarding routes — OCR preview (commit 4) + complete (commit 5).
+"""M5-api onboarding routes — OCR preview (commit 4) + complete (commit 7~8).
 
 `POST /onboarding/ocr`: multipart upload → DoS-safe chunked read → magic-bytes /
 size / single-page PDF validation → CLOVA bizLicense → boundary DTO. Result
 is preview-only, not persisted (pitfalls D — user edits the result before
-`POST /onboarding/complete` saves it as `Company`).
+`POST /onboarding/complete` saves it as `Company` + default `Project`).
 
-NextAuth JWT protection lands in commit 7 via `app.include_router(deps=...)`
-(Q37 — dev-only exposure during commit 4~6).
+NextAuth JWT 보호는 `/onboarding/*` router-level dependency 로 적용됨 (Q61) —
+`main.py::app.include_router(..., dependencies=[Depends(get_current_user_id)])`.
+`/ocr` 도 포함 (CLOVA 비용 abuse 차단). `/complete` 의 path-level
+`Depends(get_current_user_id)` 는 user_id 값 사용 위해 유지 (FastAPI sub-dep
+cache 가 중복 호출 회피).
 
 Korean user-facing detail (CLAUDE.md absolute rule E + pitfalls C4): the
 route owns the `code → 한국어 message` lookup table. `OcrCallError.message`

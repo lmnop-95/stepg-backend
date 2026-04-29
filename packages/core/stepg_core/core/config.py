@@ -118,6 +118,17 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _require_nextauth_secret_in_prod(self) -> Settings:
+        # Q58 — `NEXTAUTH_SECRET`은 staging/production에서 NextAuth JWT 검증
+        # (commit 9 `auth/nextauth_jwt::verify_session_jwt`)에 반드시 필요.
+        # dev에서는 `auth/deps.py::get_current_user_id`가 `DEV_USER_ID` env로
+        # fallback하므로 None 허용. import-time loud-fail (per-request guard
+        # 보다 강함) — `auth/deps.py` production guard 패턴 답습.
+        if self.app_env in ("staging", "production") and self.nextauth_secret is None:
+            raise ValueError(f"NEXTAUTH_SECRET은 app_env={self.app_env}에서 반드시 명시해야 합니다")
+        return self
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
