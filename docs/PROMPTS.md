@@ -357,3 +357,135 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 **적재**: needs_review 분기 시 → M1 ORM 의 `ReviewQueueItem` row 적재 (M4 main 코드 commit 5 SoT, `ARCHITECTURE.md §4.4` 엔티티 관계 참조). auto-approved 분기 시 → `Posting.extracted_data` JSONB inline 적재 + `Posting.needs_review=False`. 적재 양식·트랜잭션 처리는 M4 main 코드 PR 위임 — 본 §7 은 분기 룰 SoT 만.
 
 **운영 metric 측정**: invalid 비율 / 자동승인 비율 / low-conf 평균 (M4 정량 목표 자동승인 70%+ / invalid <5% / low-conf <2개) 는 단건 Stage 3 처리 안 측정 X — M9 admin 의 audit log 집계 SoT (`ExtractionAuditLog` + `ReviewQueueItem` row count). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP, §5 보수적 self-rating 정책 일관).
+
+## 8. golden 예제 5종
+
+분포 = 분야 3 (AI / 제조·소재 / 콘텐츠) + 난이도 2 (invalid trigger / 모호 multi-tag — Stage 2/3 분기 검증). 분야 선택 기준 = `TAXONOMY.md §6.3(a)` 5분야 (AI/데이터, 바이오, 제조/소재, 콘텐츠/디자인, 이커머스) 중 **multi-tag dense + §5.1 (a) boundary 룰 검증 cover 분야 우선** (cross-axis 신호 풍부 — AI ↔ 제조 / 제조 ↔ 클린텍 / 콘텐츠 ↔ 수출). 바이오·이커머스는 단일 axis 경향 + M6 150쌍 eval 세트 cover (본 §8 외부 위임). 입력 = bizinfo 실 데이터 3건 (source_id + content_hash 인용, DB fetch reproducible) + 합성 2건. expected output = 핵심 필드 (eligibility 6 + tags 5 + summary) — 풀스펙 `ExtractedPostingData` JSON 은 M6 150쌍 eval set SoT (`ARCHITECTURE.md §9` line 411-413 M6 평가 세트 + `docs/eval/guide.md`). 신뢰도 표기 = zone 단위 (값 X) — calibration robust.
+
+**채점 임계 (§8.1-§8.5 양식 통일)**: 자동 채점 = (a) multi-tag 필드 (`field_of_work_tag_ids`) tag set Jaccard ≥ 0.75 (부분 일치 허용 — boundary 룰 적용 시 우선 path 1 + cross-tag 1-2 기준), (b) single-value 필드 (`corporate_types_allowed`, `funding_uses`, `location_required_sido` 단건) 정확 일치, (c) 배열 필드 ≥ N개 emit (각 §8.x 별 N 명시). 큐레이터 채점 = summary 자연 reading (200자 이내, 핵심 신호 cover) + boundary 룰 적용 일관성. M6 eval guide (`docs/eval/guide.md`) 와 동일 임계 — dual SoT 회피.
+
+**schema 의존성 (§8 일괄 헤더)**: 본 §8 의 `STAGE2_INVALID_TAG` / `STAGE2_INVALID_FIELD` action 은 §6 step 3 의 M1 `AUDIT_ACTIONS` enum 확장 migration 의존 (M4 main PR 첫 commit). golden test 작성 시 enum 확장 없이는 `IntegrityError: action_allowed CHECK constraint violation`.
+
+| ID | 분야 | 난이도 | source | 핵심 검증 |
+|----|------|--------|--------|----------|
+| §8.1 | AI | easy | bizinfo `PBLN_000000000121189` | `tech.ai_ml.*` path emit + 제조 cross-tag |
+| §8.2 | 제조·소재 (cleantech) | medium | bizinfo `PBLN_000000000121184` | `tech.cleantech.*` ↔ `tech.manufacturing.*` boundary (§5.1 (a)) |
+| §8.3 | 콘텐츠 (수출) | medium | bizinfo `PBLN_000000000121252` | `biz.content_media.*` + 수출 funding_uses |
+| §8.4 | invalid trigger | hard | 합성 (양자컴퓨팅 본문) | Stage 2 alias miss → `ExtractionAuditLog` row 적재 (§7 invalid 카운트 ≥1 분기) |
+| §8.5 | 모호 multi-tag | hard | 합성 (AI 의료 SW 본문) | `tech.bio.digital_health` ↔ `biz.healthcare_service` boundary (§5.1 (a)) |
+
+### 8.1 AI (easy) — `PBLN_000000000121189`
+
+**source**: `source_id=PBLN_000000000121189` / `content_hash=350f74fbe36c454b58ed00fa94bb0e2afd32c2f3529cf2887c2b54113ab1a0b4` / 제목 = "2026년 제조암묵지기반AI모델개발사업 신규지원 대상과제 수정 공고".
+
+**expected key fields**:
+- `field_of_work_tag_ids`: `[tech.ai_ml.generative, tech.ai_ml.mlops, tech.manufacturing.smart_factory, biz.b2b_saas.dev_tools]` (확실 zone — 제목 명시 키워드 직접 매핑).
+- `eligibility.corporate_types_allowed`: `["중소기업"]` (확실), 그 외 5 필드 = `null` 또는 본문 발췌 후 큐레이터 검증.
+- `funding_uses`: `["R&D"]` (확실 — "AI모델개발사업").
+- `summary`: 제조 도메인 암묵지 기반 AI 모델 개발 R&D 사업, 중소기업 대상.
+
+**채점** (§8 첫 단락 채점 임계 일관):
+- 자동: tag set Jaccard ≥ 0.75 (multi-tag 부분 일치 — `tech.ai_ml.*` umbrella 또는 자식 1+ + manufacturing cross-tag) + corporate_types 정확 일치 + funding_uses 정확 일치.
+- 큐레이터: summary 자연 reading (제조 + AI 핵심 cover 여부, 200자 이내).
+
+### 8.2 제조·소재 (cleantech, medium) — `PBLN_000000000121184`
+
+**source**: `source_id=PBLN_000000000121184` / `content_hash=f961357a791ede711de2b88e75de175b73e228cb67b4f51a0aebd30d68e7116c` / 제목 = "[전남] 2026년 탄소중립 제조혁신 고도화 2단계 사업 참여기업 모집 공고".
+
+**expected key fields**:
+- `field_of_work_tag_ids`: `[tech.cleantech.material, tech.cleantech.recycling, tech.manufacturing.process]` (추론 zone — `tech.cleantech.*` ↔ `tech.manufacturing.*` boundary 룰 §5.1 (a) 적용. "탄소중립 + 제조혁신" 신호로 cleantech 우선 + manufacturing cross-tag).
+- `eligibility.location_required_sido`: `["전라남도"]` (확실 — 제목 prefix `[전남]`).
+- `eligibility.corporate_types_allowed`: `["중소기업"]` (확실).
+- `funding_uses`: `["R&D", "시설투자"]` (추론 — "제조혁신" 신호).
+- `summary`: 전남 탄소중립 제조혁신 R&D 지원, 중소기업 참여.
+
+**채점**:
+- 자동: cleantech path 적어도 1개 emit + manufacturing path cross-tag 검증 + sido 정확 일치.
+- 큐레이터: §5.1 (a) boundary 룰 적용 일관성 (cleantech 우선 + manufacturing cross-tag).
+
+### 8.3 콘텐츠 수출 (medium) — `PBLN_000000000121252`
+
+**source**: `source_id=PBLN_000000000121252` / `content_hash=5a5062f61cbd11f99020c2a9a83acd529eb86f9b3b3f2badb2925bb884de1e77` / 제목 = "싱가포르 K-콘텐츠ㆍIP 파트너십 데이 참가기업 모집 공고".
+
+**expected key fields**:
+- `field_of_work_tag_ids`: `[biz.content_media, biz.content_media.video, biz.content_media.music, biz.content_media.webtoon]` (추론 zone — "K-콘텐츠" umbrella 신호, 자식 path 분포는 `tag_confidence_per_id` 추론 zone emit). Umbrella + 자식 동시 emit 의 매칭 효과는 `ARCHITECTURE.md §6.2` Tag Matching Umbrella 룰 SoT — 본 §8 spot check 는 emit 양식 검증만, 매칭 점수 영향은 M6 eval guide 위임.
+- `eligibility.corporate_types_allowed`: `["중소기업"]` (추론 — 정부 공고 일반).
+- `funding_uses`: `["수출"]` (확실 — "싱가포르 파트너십" 신호).
+- `eligibility.location_required_sido`: `["전국"]` (확실 — sido prefix 없음).
+- `summary`: 싱가포르 시장 K-콘텐츠·IP 수출 매칭 사업, 콘텐츠 중소기업 대상.
+
+**채점**:
+- 자동: `biz.content_media` umbrella 또는 자식 path 적어도 2개 emit + funding_uses=["수출"] 정확.
+- 큐레이터: K-콘텐츠 자식 path 분포 적정성 (`video/music/webtoon/game/broadcast` 중 본문 명시된 자식만 high-conf, 그 외 추론·모호 zone).
+
+### 8.4 invalid trigger (hard, 합성)
+
+**source**: 합성 본문. 제목 = "2026년 양자컴퓨팅·양자통신 R&D 지원 사업". 본문에 "양자컴퓨팅" / "양자통신" / "양자센서" 키워드 반복 등장.
+
+**expected key fields (LLM 환각 시나리오)**:
+- LLM Stage 1 출력 `field_of_work_tag_ids`: `[tech.quantum.computing]` (LLM 환각 path — TAXONOMY.md §5 트리에 부재). 신뢰도는 LLM 자기평가 모름·모호 zone 가정 (`§5` self-rating 보수적).
+- Stage 2: alias remap (a) path-exact miss + (b) aliases-exact miss → invalid 처리 (`§6` step 2 (c)).
+  - `ExtractionAuditLog` row 적재: `action='STAGE2_INVALID_TAG'` / `before={"raw_path": "tech.quantum.computing", "confidence": <LLM 자기평가 값>}` / `after={"reason": "invalid_tag_dropped", "normalized": "tech.quantum.computing", "matched_node": null}` (§6 step 3 양식 일관).
+  - Stage 2 final 출력 `field_of_work_tag_ids`: `[]` (빈 배열 — invalid drop 후 valid 0 개).
+- Stage 3 분기: §7 조건 1 (invalid 존재 ≥1) **AND** 조건 4 (valid 태그 0) 동시 트리거 → needs_review.
+
+**채점**:
+- 자동: `ExtractionAuditLog` row count ≥ 1 (invalid 검출) + Stage 2 final `field_of_work_tag_ids` 빈 배열 + Stage 3 분기 = needs_review.
+- 큐레이터: invalid 로깅 신호 = M9 admin 검수 입력으로 "양자컴퓨팅" 신규 노드 추가 후보 (운영 중 택소노미 누락 신호 — `ARCHITECTURE.md §7.3`). Stage 2 의 "인접 분야 추론" 양식 안 함 (Stage 2 = invalid drop 만, 인접 path 추론 emit 은 §3 ## 제약 LLM 책임 영역).
+
+### 8.5 모호 multi-tag (hard, 합성)
+
+**source**: 합성 본문. 제목 = "AI 기반 의료 진단 SaaS 개발 지원 사업". 본문에 "AI 모델 / 의료 진단 / SaaS / 클리닉 운영 효율화" 키워드 mixed.
+
+**expected key fields**:
+- `field_of_work_tag_ids`: TAXONOMY.md §5.1 (a) boundary 룰 적용 — `tech.bio.digital_health` 우선 (SW/플랫폼 측면) + `tech.ai_ml.*` 추론 cross-tag. `biz.healthcare_service` 도 우선 옵션 (의료 운영 측면) — 본문 신호 강도 별 분기.
+  - 강한 단서 (SaaS / 진단 SW 명시) → `tech.bio.digital_health` 추론 zone, `tech.ai_ml.cv` 추론 zone (AI 의료 진단 = 영상 인식 우선) 또는 `tech.ai_ml` umbrella 추론 zone (AI 분야 강한 단서 + 자식 노드 정확 일치 X). `tech.ai_ml.recsys` (추천/검색) 는 의료 진단 도메인 mismatch — emit X.
+  - 약한 단서 (클리닉 운영 부분) → `biz.healthcare_service` 모호 zone (boundary 표 (a) 룰: 운영 측면 = healthcare_service 우선).
+- `eligibility.certifications_preferred`: `null` (모호 zone 신뢰도) — 본문에 인증 단서 명시 없음 가정. "AI/SaaS 정부 공고 일반" 같은 본문 외 도메인 prior 추측은 §3 ## 역할 fabricate guard rail 발동 → null emit 강제 (`PROMPTS.md §5` 모호·모름 zone).
+- `funding_uses`: `["R&D"]` (확실 — "개발 지원" 신호).
+
+**채점**:
+- 자동: `tech.bio.digital_health` emit + `tech.ai_ml.cv` 또는 `tech.ai_ml` umbrella 적어도 1개 cross-tag emit (§5.1 (a) 우선 노드 + cross-axis 룰 적용) + `certifications_preferred=null` (fabricate guard rail 발동 검증).
+- 큐레이터: boundary 룰 적용 일관성 (SW 측면 = digital_health 우선, 운영 측면 = healthcare_service 모호 zone) + multi-tag 분포 자연성 + fabricate guard rail 발동 일관성 (본문 외 prior 추측 시 null emit 강제).
+
+### 8.6 운영 정량 검증 (M4 정량 목표 cross-ref)
+
+본 §8 5종 = M4 main 코드 schema-level spot check (tool schema · alias remap · invalid 로깅 · §5.1 boundary 룰 · Stage 3 분기). M4 정량 (자동승인 70%+ / invalid <5% / low-conf <2개) 운영 검증은 **M6 평가 세트 (5 personas × 30 postings = 150쌍)** SoT — `ARCHITECTURE.md §9` line 411-413 + `docs/eval/guide.md`. M4 main 코드 commit 5 또는 별 PR 에서 M6 평가 세트 cross-ref + 정량 측정.
+
+## 9. 운영 SOP
+
+### 9.1 갱신 절차
+
+PROMPTS.md 갱신 시점·영향:
+- **§3 시스템 prompt 본문 변경**: prompt 빌더 cache 영역 invalidate → 다음 Stage 1 호출에서 cache miss + full re-process. 영향 범위 = 신규 + 진행 중 모든 추출.
+- **§5 신뢰도 zone 정의 변경**: M9 audit log 의 zone breakdown 분포 stale, M6 eval 가중치 calibration 필요.
+- **§6 / §7 분기 룰 변경**: Stage 2/3 동작 자체 변경 — `ExtractionAuditLog` action enum 추가 시 M1 schema migration 동반 (`ARCHITECTURE.md §9` 참고).
+- **§8 golden 예제 변경**: spot check set 갱신 — M6 eval 세트 와 sync.
+
+모든 변경 = **앱 재시작** (`TAXONOMY.md §5.1` line 230 SOP 일관). hot reload X — system prompt 가 cache_control 단일 블록 (§1) 이라 부분 갱신 X.
+
+### 9.2 캐시 invalidation
+
+`cache_control: ephemeral` 두 캐시 (system block + tools[0].tool_desc) 의 invalidation 트리거:
+- **PROMPTS.md §3 변경** → system block cache miss.
+- **PROMPTS.md §1 tool schema 변경** → tool desc cache miss.
+- **TAXONOMY.md §5 / §5.1 변경** → system block cache miss (`{TAXONOMY_TREE}` / `{TAXONOMY_BOUNDARY}` substitute 결과 변경).
+
+cache miss 후 첫 호출에서 토큰 비용 100% 발생 (90% 절감 효과 1 호출 후 회복). 운영 영향 = 단일 호출 cost spike, 누적 영향 미미. 빈도 가이드 = TAXONOMY.md / PROMPTS.md 갱신 = 월 1회 미만 (Phase 1 SOP).
+
+### 9.3 M9 admin 후속
+
+`ExtractionAuditLog` row + `ReviewQueueItem` row 가 M9 admin tool 의 입력. cross-ref:
+- M9 admin `GET /admin/review-queue` (paginated needs_review 목록) — `ReviewQueueItem` row 입력.
+- M9 admin invalid 로깅 집계 — `ExtractionAuditLog WHERE action IN ('STAGE2_INVALID_TAG', 'STAGE2_INVALID_FIELD')` 집계 → 택소노미 누락 노드 / aliases 부족 후보 (운영 진화 신호, `ARCHITECTURE.md §7.3` 운영 중 진화 SoT).
+- M9 admin approve flow — 큐레이터 수동 수정본 → `Posting.extracted_data` 갱신 + `Posting.needs_review=False` + `ExtractionAuditLog action='MANUAL_APPROVE'` 적재.
+
+본 §9.3 = M9 PR scope cross-ref 만 (`plans/backend.md` row 9). 풀세트 admin tool 양식 = M9 PR SoT.
+
+### 9.4 Phase 1.5 후속
+
+`ARCHITECTURE.md §10` 의 Phase 1.5 PROMPTS.md 관련 항목:
+- **prompt versioning** — 운영 중 prompt 변경 이력 보존 (현 Phase 1 = git history). M9 audit log 와 prompt version 매핑 필요.
+- **zone 임계 calibration** — 운영 데이터 기반 5단계 zone 임계 재조정 (자동승인 70%+ 미달 시).
+- **golden 예제 자동 회귀 테스트** — 본 §8 5종 + M6 150쌍 → CI 통합 (현 Phase 1 = 수동 spot check).
+- **structlog + Sentry** 도입 시 invalid 로깅 mechanism 재검토 (`ExtractionAuditLog` row + structlog 분리).
