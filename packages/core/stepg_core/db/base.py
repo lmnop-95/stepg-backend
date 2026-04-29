@@ -70,6 +70,7 @@ def _register_feature_mappers() -> None:
     import stepg_core.features.companies.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.fields_of_work.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.matching.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
+    import stepg_core.features.onboarding.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.postings.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.projects.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
     import stepg_core.features.review.models  # noqa: F401  # pyright: ignore[reportUnusedImport]
