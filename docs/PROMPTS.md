@@ -330,3 +330,30 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 **보수적 self-rating 정책**: §3 ## 신뢰도 본문이 SoT — invalid <5% 우선 (자동승인 70%+ 와 trade-off). 의문 시 낮춰 emit (모호·모름 zone 으로 강제). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP) — runtime 자기평가 정책은 일관 유지.
 
 **보정 (calibration)**: Phase 1 SOP — 운영 중 신뢰도 분포 (zone 사용 빈도) 측정 → prompt 보강 / 택소노미 누락 노드·aliases 보강 (`ARCHITECTURE.md §9` line 409). zone 정의 자체 변경 = 본 §5 갱신 + 앱 재시작 (§2.1 동일 SOP). Phase 1.5 — 운영 데이터 기반 zone 임계 calibration 검토 (자동승인 70%+ 미달 시 임계 조정 / zone 비율 재배분).
+
+## 6. Stage 2 검증
+
+`ARCHITECTURE.md §5` line 232-234 SoT cross-ref. Stage 1 LLM 출력 (tool arguments) 을 받아 택소노미 정합 + invalid 로깅 + final dict clean 까지. Stage 2 는 순서 의존 절차 — 다음 단계가 이전 출력을 입력으로 받음 (Stage 3 분기 §7 의 입력 = 본 §6 의 final 출력).
+
+1. **입력 normalize**: LLM 출력 `field_of_work_tag_ids` 의 각 element 별 정규화 — `lower().strip()` + 내부 공백 단일 space 압축. TAXONOMY.md 의 path 양식 (`tech.ai_ml.nlp` 같은 lowercase 영어) 과 alias (한국어 + 영문 mixed, 예: "AI/ML, AI, ML, 인공지능, ...") 모두 동일 정규화 적용.
+2. **alias remap**: 정규화 후 string 이 (a) TAXONOMY.md §5 트리의 path 100개 와 정확 일치 → 그대로 valid path. (b) 일치 X 면 트리 100 노드 의 `aliases` 배열 (정규화 후) 안 정확 일치 검색 → hit 시 해당 노드의 정식 path 로 매핑. (c) (a) (b) 모두 miss → invalid 처리. **multi-match tie-break**: 같은 정규화 alias 가 여러 노드 의 aliases 에 박힌 경우 → path 사전순 (lexicographic) 가장 먼저인 노드 선택, 결정적 동작 보장. fuzzy 매칭 (pg_trgm 등) X — Phase 1 SOP, false positive 차단. (TAXONOMY.md 측 alias 중복 차단 invariant 는 본 PR scope 외 — 후속 PR 에서 PR 1.1 commit 시 unique check 검토.)
+3. **invalid 로깅**: invalid path 별 `ExtractionAuditLog` row 적재 — `posting_id` / `action='STAGE2_INVALID_TAG'` / `before={"raw_path": <LLM 원본>, "confidence": <tag_confidence_per_id 값>}` / `after={"reason": "invalid_tag_dropped", "normalized": <정규화 결과>, "matched_node": null}` (post-Stage2 snapshot, M1 schema `after NOT NULL` 정합) / `actor_user_id=null` (system actor — `ARCHITECTURE.md §10 Phase 1.5` 의 NULL 의미 분리 메모와 일관). **M4 main 코드 의존성**: M1 `AUDIT_ACTIONS` enum (현재 `AUTO_APPROVE/MANUAL_APPROVE/EDIT/MANUAL_INSERT/REJECT` 5종) 에 `STAGE2_INVALID_TAG` / `STAGE2_INVALID_FIELD` 두 신규 action 추가 migration 이 M4 main PR 의 첫 commit 으로 박혀야 함 (CheckConstraint `_AUDIT_ACTION_CHECK_SQL` 도 동시 갱신). 운영 중 누적 invalid 토큰이 택소노미 누락 노드 / aliases 부족 신호 (M9 admin 검수 입력).
+4. **final dict 정합**: Stage 2 출력 `field_of_work_tag_ids` = (a)/(b) 만 (invalid 제거). `tag_confidence_per_id` 도 동기화 — invalid 로 제거된 path 의 신뢰도 키도 함께 제거 (final 두 dict 의 키 set 동일 보장, M6 matching 엔진 path-by-path lookup 안전).
+5. **eligibility 필드 검증**: §1.1 의 18 nested 필드는 schema 검증 (Pydantic `EligibilityRules` 모델 — type 검증 + 6종 인증 enum + custom validator (KSIC 숫자 양식·대분류 알파벳 제외, location sido 광역명 매핑 등 §1.1 description rule 모두 mirror, `field_validator` decorator 박힘)) 만 — alias remap 대상 X. schema-level 위반 (type / enum / custom validator 어느 layer 든) 시 invalid 로깅 동일 양식 (`action='STAGE2_INVALID_FIELD'`, before/after snapshot 양식 step 3 와 동일) + 해당 eligibility 필드 value 만 null 처리. `field_confidence_scores` 는 **변경 X** — LLM 원본 신뢰도 dict 그대로 보존 (eligibility 필드 자체는 null 박지만 신뢰도 dict 의 키·value 모두 LLM-emitted 값 유지, §1 schema `additionalProperties: number` 정합 유지). LLM 이 emit 한 신뢰도가 invalid 필드에 대해 stale 해도 의도 신호 (M9 audit log 분석 시 LLM 자기평가 vs 실제 schema 정합 분포 측정) 로 보존.
+
+## 7. Stage 3 분기
+
+`ARCHITECTURE.md §5` line 237-243 SoT cross-ref. Stage 2 final 출력을 입력으로 받아 needs_review (검수 큐) vs auto-approved 분기. 4 조건의 boolean OR — 어느 하나라도 참이면 needs_review.
+
+| 조건 | 임계 | SoT | 트리거 의도 |
+|------|------|------|-----------|
+| invalid 태그 존재 | ≥ 1개 (Stage 2 의 invalid 로깅 카운트) | `ARCHITECTURE.md §5` line 238 | LLM 환각 / 택소노미 누락 노드 신호 — 큐레이터 검수 시 alias 보강 후보 |
+| low-conf 태그 카운트 | `tag_confidence_per_id` 의 `< 0.7` 값 카운트 > 2개 (3개 이상) | `ARCHITECTURE.md §5` line 239 | 매칭 정확도 위협 — 다수 path 가 추론·모호 zone 이면 M6 matching 신뢰도 ↓ |
+| low-conf eligibility 필드 카운트 | `field_confidence_scores` 의 `< 0.7` 값 카운트 > 2개 (3개 이상) | `ARCHITECTURE.md §5` line 240 | Hard Filter 입력 신뢰도 위협 — Layer A 의 match precision 위협 |
+| valid 태그 0개 | Stage 2 final `field_of_work_tag_ids` 빈 배열 | `ARCHITECTURE.md §5` line 241 | 매칭 자체 불가능 (Layer B Tag Match input 부재) |
+
+**boundary 양식**: `< 0.7` strict half-open (§5 양식 일관). 정확히 0.7 = 확실 zone (high-conf), 분기 카운트 미포함.
+
+**적재**: needs_review 분기 시 → M1 ORM 의 `ReviewQueueItem` row 적재 (M4 main 코드 commit 5 SoT, `ARCHITECTURE.md §4.4` 엔티티 관계 참조). auto-approved 분기 시 → `Posting.extracted_data` JSONB inline 적재 + `Posting.needs_review=False`. 적재 양식·트랜잭션 처리는 M4 main 코드 PR 위임 — 본 §7 은 분기 룰 SoT 만.
+
+**운영 metric 측정**: invalid 비율 / 자동승인 비율 / low-conf 평균 (M4 정량 목표 자동승인 70%+ / invalid <5% / low-conf <2개) 는 단건 Stage 3 처리 안 측정 X — M9 admin 의 audit log 집계 SoT (`ExtractionAuditLog` + `ReviewQueueItem` row count). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP, §5 보수적 self-rating 정책 일관).
