@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "Body_post_ocr_onboarding_ocr_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_post_ocr_onboarding_ocr_post",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -12,6 +39,200 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "OcrBizRegResponse": {
+        "description": "Frozen boundary DTO returned by `recognize_bizlicense`.\n\nField cardinality (Q15) \u2014 multi where domain semantics require it\n(\uacf5\ub3d9\ub300\ud45c / multi-business), single elsewhere. `business_address` and\n`head_address` are both retained (Q16); the choice of which feeds\n`Company.address` is deferred to commit 5 (`POST /onboarding/complete`).",
+        "properties": {
+          "biz_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Biz Reg No"
+          },
+          "business_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Address"
+          },
+          "business_area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Area"
+          },
+          "business_items": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Items",
+            "type": "array"
+          },
+          "business_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Types",
+            "type": "array"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "corp_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corp Name"
+          },
+          "corp_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corp Reg No"
+          },
+          "document_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Type"
+          },
+          "established_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Established On"
+          },
+          "head_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Address"
+          },
+          "issuance_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuance Date"
+          },
+          "representative_names": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Representative Names",
+            "type": "array"
+          },
+          "tax_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Type"
+          }
+        },
+        "title": "OcrBizRegResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       }
     }
@@ -38,6 +259,48 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/onboarding/ocr": {
+      "post": {
+        "description": "\uc0ac\uc5c5\uc790\ub4f1\ub85d\uc99d OCR preview \u2014 DB \ubbf8\uc800\uc7a5.\n\nmultipart upload \u2192 chunked size-guarded read \u2192 `validate_upload`\n(size + MIME + magic-bytes + \ub2e8\uc77c \ud398\uc774\uc9c0 PDF) \u2192 `recognize_bizlicense` \u2192\n`OcrBizRegResponse`. multi-page PDF \ub294 BE \uc0ac\uc804 \uac80\uc99d\uc73c\ub85c 422 \uc989\uc2dc \uac70\ubd80\n(CLOVA \ud638\ucd9c \ube44\uc6a9 \uc808\uac10, Q31).",
+        "operationId": "post_ocr_onboarding_ocr_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_post_ocr_onboarding_ocr_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrBizRegResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Ocr",
+        "tags": [
+          "onboarding"
+        ]
       }
     }
   }
