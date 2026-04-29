@@ -63,9 +63,32 @@ class UnsupportedAttachmentFormatError(Exception):
         self.filename = filename
 
 
+class OcrCallError(Exception):
+    """Domain-level OCR failure surfaced to the route layer (Q23 / Q5 pass3).
+
+    `code` is a stable snake_case identifier (Q8); `message` carries upstream
+    wording for log / inspection only — the route layer maps `code` to a
+    Korean user-facing detail via its own lookup table (Q2 pass3 contract:
+    `OcrCallError.message` is *internal*, never surfaced to FE). `http_status`
+    is None for our own pre-call validation (e.g. misconfiguration, timeout)
+    and populated when the failure originates from a CLOVA HTTP response.
+
+    Defined here (M2/M3 pattern) so that `features/onboarding/sources/`,
+    `features/onboarding/upload_validator.py`, and `apps/api/.../routes/`
+    share a single anchor without sub-module cross-imports.
+    """
+
+    def __init__(self, *, code: str, message: str, http_status: int | None = None) -> None:
+        super().__init__(f"OcrCallError(code={code} status={http_status})")
+        self.code = code
+        self.message = message
+        self.http_status = http_status
+
+
 __all__ = [
     "BizinfoSchemaError",
     "HttpFetchError",
     "MissingApiKeyError",
+    "OcrCallError",
     "UnsupportedAttachmentFormatError",
 ]

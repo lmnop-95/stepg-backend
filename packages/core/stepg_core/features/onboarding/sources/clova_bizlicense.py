@@ -34,7 +34,7 @@ from typing import Final
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
 from stepg_core.core.config import get_settings
-from stepg_core.core.errors import HttpFetchError
+from stepg_core.core.errors import HttpFetchError, OcrCallError
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
 from stepg_core.features.onboarding.schemas import (
     BizLicenseElementRaw,
@@ -53,10 +53,11 @@ _KOREAN_DATE_RE = re.compile(r"^\s*(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s
 _BIZ_REG_NO_NON_DIGITS_RE = re.compile(r"\D+")
 
 # Q29 whitelist: jpg/jpeg/png/pdf only. tif/tiff excluded — Phase 1.5 lift.
-# `image/jpg` is non-standard but observed in the wild; map to "jpg" too.
+# `image/jpg` (non-standard) is normalized to `image/jpeg` upstream by
+# `upload_validator._MIME_NORMALIZE` (Q4 pass3 — single SoT in validator);
+# this map only sees canonical MIMEs.
 _FORMAT_MAP: Final[dict[str, str]] = {
     "image/jpeg": "jpg",
-    "image/jpg": "jpg",
     "image/png": "png",
     "application/pdf": "pdf",
 }
@@ -84,22 +85,6 @@ class _ClovaErrorBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     code: str = ""
     message: str = ""
-
-
-class OcrCallError(Exception):
-    """Domain-level OCR failure surfaced to the service layer (Q23).
-
-    `code` is a stable snake_case identifier (Q8); `message` carries upstream
-    wording for log / inspection only. `http_status` is None for our own
-    pre-call validation (e.g. misconfiguration, timeout) and populated when
-    the failure originates from a CLOVA HTTP response.
-    """
-
-    def __init__(self, *, code: str, message: str, http_status: int | None = None) -> None:
-        super().__init__(f"OcrCallError(code={code} status={http_status})")
-        self.code = code
-        self.message = message
-        self.http_status = http_status
 
 
 def _strip_biz_reg_no(raw: str) -> str | None:
@@ -284,4 +269,4 @@ async def recognize_bizlicense(image: bytes, mime_type: str) -> OcrBizRegRespons
     return _map_to_dto(image_result.bizLicense.result)
 
 
-__all__ = ["OcrCallError", "recognize_bizlicense"]
+__all__ = ["recognize_bizlicense"]

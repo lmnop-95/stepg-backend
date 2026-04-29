@@ -1165,6 +1165,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pypdf"
+version = "6.10.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/3f/9f2167401c2e94833ca3b69535bad89e533b5de75fefe4197a2c224baec2/pypdf-6.10.2.tar.gz", hash = "sha256:7d09ce108eff6bf67465d461b6ef352dcb8d84f7a91befc02f904455c6eea11d", size = 5315679, upload-time = "2026-04-15T16:37:36.978Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0c/d6/1d5c60cc17bbdf37c1552d9c03862fc6d32c5836732a0415b2d637edc2d0/pypdf-6.10.2-py3-none-any.whl", hash = "sha256:aa53be9826655b51c96741e5d7983ca224d898ac0a77896e64636810517624aa", size = 336308, upload-time = "2026-04-15T16:37:34.851Z" },
+]
+
+[[package]]
 name = "pypdfium2"
 version = "5.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1295,6 +1304,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/04/c6/b6efe49d425092ff28d6d4e428fb5c985421b0f8db1d860d44162e98d93c/python_hwpx-2.9.0.tar.gz", hash = "sha256:a79b350ee62fd3395619972d8401c530430b81ab4686074c680d4479ec2e7326", size = 144328, upload-time = "2026-04-02T03:34:12.178Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a9/76/95c060741da71a81dfb0c10acd1619dee06a517b4db32753f1396d380ea1/python_hwpx-2.9.0-py3-none-any.whl", hash = "sha256:1616243f544c198fa34639000c429aa6ce9f3bebbcc213b7fc30a12fc14be039", size = 116823, upload-time = "2026-04-02T03:34:10.983Z" },
+]
+
+[[package]]
+name = "python-multipart"
+version = "0.0.27"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/9b/f23807317a113dc36e74e75eb265a02dd1a4d9082abc3c1064acd22997c4/python_multipart-0.0.27.tar.gz", hash = "sha256:9870a6a8c5a20a5bf4f07c017bd1489006ff8836cff097b6933355ee2b49b602", size = 44043, upload-time = "2026-04-27T10:51:26.649Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/78/4126abcbdbd3c559d43e0db7f7b9173fc6befe45d39a2856cc0b8ec2a5a6/python_multipart-0.0.27-py3-none-any.whl", hash = "sha256:6fccfad17a27334bd0193681b369f476eda3409f17381a2d65aa7df3f7275645", size = 29254, upload-time = "2026-04-27T10:51:24.997Z" },
 ]
 
 [[package]]
@@ -1570,6 +1588,7 @@ version = "0.0.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "python-multipart" },
     { name = "stepg-core" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1577,6 +1596,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.135" },
+    { name = "python-multipart", specifier = ">=0.0.18" },
     { name = "stepg-core", editable = "packages/core" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
@@ -1595,6 +1615,7 @@ dependencies = [
     { name = "pdfplumber" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pypdf" },
     { name = "python-docx" },
     { name = "python-hwpx" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -1613,6 +1634,7 @@ requires-dist = [
     { name = "pdfplumber", specifier = ">=0.11" },
     { name = "pydantic", specifier = ">=2.10" },
     { name = "pydantic-settings", specifier = ">=2.6" },
+    { name = "pypdf", specifier = ">=5.1" },
     { name = "python-docx", specifier = ">=1.1" },
     { name = "python-hwpx", specifier = ">=2.9" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },

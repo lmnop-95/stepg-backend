@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from stepg_core.core.logging import configure_logging
 from stepg_core.features.extraction.anthropic_client import aclose_if_initialized
 
+from stepg_api.routes.onboarding import router as onboarding_router
+
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
 
@@ -23,6 +25,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(title="stepg-api", version=version("stepg-api"), lifespan=lifespan)
+app.include_router(onboarding_router)
 
 
 class HealthResponse(BaseModel):
