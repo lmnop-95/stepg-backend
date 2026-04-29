@@ -13,7 +13,7 @@
 |------|----------|----------------|
 | `ARCHITECTURE.md §5` (Stage 1/2/3 정책) | cross-ref + 정량 임계 인용 (line 229 5단계 / line 239 0.7 임계 / line 237-243 분기 4 조건) | §0 / §5 / §6 / §7 |
 | `ARCHITECTURE.md §4.1` `EligibilityRules` 18 필드 | tool input_schema `eligibility` nested 1:1 mapping | §1.1 |
-| `ARCHITECTURE.md §4.2` `ExtractedPostingData` 13 필드 | tool input_schema top-level 1:1 mapping | §1 |
+| `ARCHITECTURE.md §4.2` `ExtractedPostingData` 12 top-level 필드 (eligibility nested 18 필드는 §1.1 별도) | tool input_schema top-level 1:1 mapping | §1 |
 | `TAXONOMY.md §5` 트리 100 노드 (markdown) | `{TAXONOMY_TREE}` placeholder runtime read (앱 startup 1회 + 캐시) | §2 / §3 |
 | `TAXONOMY.md §5.1` (a) overlap 표 + (b) cross-axis bullet | `{TAXONOMY_BOUNDARY}` placeholder runtime read (동일 캐시) | §2 / §3 |
 | `TAXONOMY.md §6.1` bizinfo 161 row 분석 | golden 예제 입력 source_id + content_hash 인용 | §8 |
@@ -94,8 +94,38 @@ client.messages.create(
       },
       "field_confidence_scores": {
         "type": "object",
-        "additionalProperties": {"type": "number", "minimum": 0, "maximum": 1},
-        "description": "eligibility 필드별 신뢰도 0-1. 키는 §1.1 EligibilityRules 필드명. §5 5단계 가이드 동일."
+        "properties": {
+          "corporate_types_allowed":   {"type": "number", "minimum": 0, "maximum": 1},
+          "corporate_types_excluded":  {"type": "number", "minimum": 0, "maximum": 1},
+          "employee_count_min":        {"type": "number", "minimum": 0, "maximum": 1},
+          "employee_count_max":        {"type": "number", "minimum": 0, "maximum": 1},
+          "revenue_last_year_min":     {"type": "number", "minimum": 0, "maximum": 1},
+          "revenue_last_year_max":     {"type": "number", "minimum": 0, "maximum": 1},
+          "years_in_business_min":     {"type": "number", "minimum": 0, "maximum": 1},
+          "years_in_business_max":     {"type": "number", "minimum": 0, "maximum": 1},
+          "location_required_sido":    {"type": "number", "minimum": 0, "maximum": 1},
+          "location_preferred_sido":   {"type": "number", "minimum": 0, "maximum": 1},
+          "location_excluded_sido":    {"type": "number", "minimum": 0, "maximum": 1},
+          "industry_ksic_allowed":     {"type": "number", "minimum": 0, "maximum": 1},
+          "industry_ksic_excluded":    {"type": "number", "minimum": 0, "maximum": 1},
+          "certifications_required":   {"type": "number", "minimum": 0, "maximum": 1},
+          "certifications_preferred":  {"type": "number", "minimum": 0, "maximum": 1},
+          "certifications_excluded":   {"type": "number", "minimum": 0, "maximum": 1},
+          "prior_recipients_excluded": {"type": "number", "minimum": 0, "maximum": 1},
+          "free_text_conditions":      {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "required": [
+          "corporate_types_allowed", "corporate_types_excluded",
+          "employee_count_min", "employee_count_max",
+          "revenue_last_year_min", "revenue_last_year_max",
+          "years_in_business_min", "years_in_business_max",
+          "location_required_sido", "location_preferred_sido", "location_excluded_sido",
+          "industry_ksic_allowed", "industry_ksic_excluded",
+          "certifications_required", "certifications_preferred", "certifications_excluded",
+          "prior_recipients_excluded", "free_text_conditions"
+        ],
+        "additionalProperties": false,
+        "description": "eligibility 18 필드와 1:1 strict — 키 §1.1 EligibilityRules 필드명 고정. §5 5단계 가이드 동일. Stage 3 분기 (PROMPTS.md §7) 의 low-conf eligibility 카운트 결정성 보장."
       },
       "summary": {
         "type": "string",
@@ -141,7 +171,7 @@ client.messages.create(
 | 6 | `support_amount_max` | `int \| None` | `["integer", "null"]` | YES |
 | 7 | `deadline_precise` | `datetime \| None` | `["string", "null"]` + date-time | YES |
 | 8 | `required_documents` | `list[str]` | array of string | NO |
-| 9 | `field_confidence_scores` | `dict[str, float]` | object additionalProperties number | NO |
+| 9 | `field_confidence_scores` | `dict[str, float]` | object properties (18 필드 strict) + `additionalProperties: false` | NO |
 | 10 | `summary` | `str` | string maxLength 200 | NO |
 | 11 | `target_description` | `str` | string | NO |
 | 12 | `support_description` | `str` | string | NO |
@@ -339,7 +369,7 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 2. **alias remap**: 정규화 후 string 이 (a) TAXONOMY.md §5 트리의 path 100개 와 정확 일치 → 그대로 valid path. (b) 일치 X 면 트리 100 노드 의 `aliases` 배열 (정규화 후) 안 정확 일치 검색 → hit 시 해당 노드의 정식 path 로 매핑. (c) (a) (b) 모두 miss → invalid 처리. **multi-match tie-break**: 같은 정규화 alias 가 여러 노드 의 aliases 에 박힌 경우 → path 사전순 (lexicographic) 가장 먼저인 노드 선택, 결정적 동작 보장. fuzzy 매칭 (pg_trgm 등) X — Phase 1 SOP, false positive 차단. (TAXONOMY.md 측 alias 중복 차단 invariant 는 본 PR scope 외 — 후속 PR 에서 PR 1.1 commit 시 unique check 검토.)
 3. **invalid 로깅**: invalid path 별 `ExtractionAuditLog` row 적재 — `posting_id` / `action='STAGE2_INVALID_TAG'` / `before={"raw_path": <LLM 원본>, "confidence": <tag_confidence_per_id 값>}` / `after={"reason": "invalid_tag_dropped", "normalized": <정규화 결과>, "matched_node": null}` (post-Stage2 snapshot, M1 schema `after NOT NULL` 정합) / `actor_user_id=null` (system actor — `ARCHITECTURE.md §10 Phase 1.5` 의 NULL 의미 분리 메모와 일관). **M4 main 코드 의존성**: M1 `AUDIT_ACTIONS` enum (현재 `AUTO_APPROVE/MANUAL_APPROVE/EDIT/MANUAL_INSERT/REJECT` 5종) 에 `STAGE2_INVALID_TAG` / `STAGE2_INVALID_FIELD` 두 신규 action 추가 migration 이 M4 main PR 의 첫 commit 으로 박혀야 함 (CheckConstraint `_AUDIT_ACTION_CHECK_SQL` 도 동시 갱신). 운영 중 누적 invalid 토큰이 택소노미 누락 노드 / aliases 부족 신호 (M9 admin 검수 입력).
 4. **final dict 정합**: Stage 2 출력 `field_of_work_tag_ids` = (a)/(b) 만 (invalid 제거). `tag_confidence_per_id` 도 동기화 — invalid 로 제거된 path 의 신뢰도 키도 함께 제거 (final 두 dict 의 키 set 동일 보장, M6 matching 엔진 path-by-path lookup 안전).
-5. **eligibility 필드 검증**: §1.1 의 18 nested 필드는 schema 검증 (Pydantic `EligibilityRules` 모델 — type 검증 + 6종 인증 enum + custom validator (KSIC 숫자 양식·대분류 알파벳 제외, location sido 광역명 매핑 등 §1.1 description rule 모두 mirror, `field_validator` decorator 박힘)) 만 — alias remap 대상 X. schema-level 위반 (type / enum / custom validator 어느 layer 든) 시 invalid 로깅 동일 양식 (`action='STAGE2_INVALID_FIELD'`, before/after snapshot 양식 step 3 와 동일) + 해당 eligibility 필드 value 만 null 처리. `field_confidence_scores` 는 **변경 X** — LLM 원본 신뢰도 dict 그대로 보존 (eligibility 필드 자체는 null 박지만 신뢰도 dict 의 키·value 모두 LLM-emitted 값 유지, §1 schema `additionalProperties: number` 정합 유지). LLM 이 emit 한 신뢰도가 invalid 필드에 대해 stale 해도 의도 신호 (M9 audit log 분석 시 LLM 자기평가 vs 실제 schema 정합 분포 측정) 로 보존.
+5. **eligibility 필드 검증**: §1.1 의 18 nested 필드는 schema 검증 (Pydantic `EligibilityRules` 모델 — type 검증 + 6종 인증 enum + custom validator (KSIC 숫자 양식·대분류 알파벳 제외, location sido 광역명 매핑 등 §1.1 description rule 모두 mirror, `field_validator` decorator 박힘)) 만 — alias remap 대상 X. schema-level 위반 (type / enum / custom validator 어느 layer 든) 시 invalid 로깅 동일 양식 (`action='STAGE2_INVALID_FIELD'`, before/after snapshot 양식 step 3 와 동일) + **타입별 fallback 치환** (§1.1 type 계약 보장): nullable 16 필드 = `null` / `prior_recipients_excluded` (bool) = `false` / `free_text_conditions` (array) = `[]`. `field_confidence_scores` 는 **변경 X** — LLM 원본 신뢰도 dict 그대로 보존 (eligibility 필드 자체는 fallback 치환되지만 신뢰도 dict 18 키·value 모두 LLM-emitted 값 유지, §1 schema `field_confidence_scores` 18 필드 strict + `additionalProperties: false` 정합 유지). LLM 이 emit 한 신뢰도가 invalid 필드에 대해 stale 해도 의도 신호 (M9 audit log 분석 시 LLM 자기평가 vs 실제 schema 정합 분포 측정) 로 보존.
 
 ## 7. Stage 3 분기
 
