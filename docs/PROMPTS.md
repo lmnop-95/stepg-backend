@@ -452,6 +452,8 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 
 본 §8 5종 = M4 main 코드 schema-level spot check (tool schema · alias remap · invalid 로깅 · §5.1 boundary 룰 · Stage 3 분기). M4 정량 (자동승인 70%+ / invalid <5% / low-conf <2개) 운영 검증은 **M6 평가 세트 (5 personas × 30 postings = 150쌍)** SoT — `ARCHITECTURE.md §9` line 411-413 + `docs/eval/guide.md`. M4 main 코드 commit 5 또는 별 PR 에서 M6 평가 세트 cross-ref + 정량 측정.
 
+**boundary 룰 cover 범위**: §8 spot check 는 `TAXONOMY.md §5.1` (a) overlap 페어 표 row 들 중 2 pair 만 cover (cleantech↔manufacturing.material §8.2, digital_health↔healthcare_service §8.5). 잔여 5+ pair (의료기기↔클리닉 운영, 게임엔진↔콘텐츠 게임, 추천검색↔BI, 관광 마켓플레이스↔일반 마켓플레이스, 결제 모듈↔commerce, 배터리·ESS↔cleantech.energy 등) 는 M6 150쌍 평가 세트 위임 — M4 main pre-M6 interim 단계는 본 §8 2 pair + LLM Stage 1 의 `{TAXONOMY_BOUNDARY}` 직접 참조로 cover.
+
 ## 9. 운영 SOP
 
 ### 9.1 갱신 절차
@@ -469,6 +471,7 @@ PROMPTS.md 갱신 시점·영향:
 `cache_control: ephemeral` 두 캐시 (system block + tools[0].tool_desc) 의 invalidation 트리거:
 - **PROMPTS.md §3 변경** → system block cache miss.
 - **PROMPTS.md §1 tool schema 변경** → tool desc cache miss.
+- **PROMPTS.md §1.1 EligibilityRules nested schema 변경** → tool desc cache miss (§1 의 `eligibility` 자리에 §1.1 inline expand 박는 양식 — Anthropic `$ref`/`$defs` 미지원이라 §1.1 변경 = tool desc 본문 재구성 = 새 캐시 키. dependency chain: `ARCHITECTURE.md §4.1` SoT → §1.1 mirror → tool desc cache).
 - **TAXONOMY.md §5 / §5.1 변경** → system block cache miss (`{TAXONOMY_TREE}` / `{TAXONOMY_BOUNDARY}` substitute 결과 변경).
 
 cache miss 후 첫 호출에서 토큰 비용 100% 발생 (90% 절감 효과 1 호출 후 회복). 운영 영향 = 단일 호출 cost spike, 누적 영향 미미. 빈도 가이드 = TAXONOMY.md / PROMPTS.md 갱신 = 월 1회 미만 (Phase 1 SOP).
