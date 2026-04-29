@@ -21,9 +21,12 @@ Legacy (`docs/legacy/pitfalls.md` §M5):
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from stepg_core.core.biz_reg_no import normalize_to_digits
+from stepg_core.features.companies.models import CERTIFICATIONS, CORPORATE_TYPES
 
 
 class BizLicenseElementRaw(BaseModel):
@@ -113,4 +116,81 @@ class OcrBizRegResponse(BaseModel):
     document_type: str | None = None
 
 
-__all__ = ["OcrBizRegResponse"]
+class OnboardingCompleteRequest(BaseModel):
+    """`POST /onboarding/complete` 입력 — 사용자 검수 후 최종 확정값.
+
+    Q50 단일 schema: `Company` 컬럼과 1:1 mirror + KSIC 매핑 input
+    (`business_types`, service 단 `lookup_first_ksic_code` 입력) +
+    `fields_of_work_ids` (commit 8 `Project` M2M 적재 input, commit 7 에서는
+    Pydantic validate 만).
+
+    OCR confirmed 중 `corp_name`/`representative_name`/`address` 등은 Phase 1
+    `Company` 미저장 (pitfalls D — preview only). 본 schema 도 받지 않음.
+    저장 컬럼만 input contract 에 포함.
+    """
+
+    model_config = ConfigDict(frozen=True, str_strip_whitespace=True)
+
+    # Q47 — dash 포함 입력 수용 + validator 가 10자리 raw strip
+    biz_reg_no: str
+
+    # Q4 pass5: `min_length=1` 제거. `_check_corporate_type` 의 `CORPORATE_TYPES`
+    # membership 검증이 빈 문자열을 이미 거부하므로 Field-level guard 와 중복.
+    corporate_type: str
+    employee_count: int | None = Field(default=None, ge=0)
+    revenue_last_year: int | None = Field(default=None, ge=0)
+    sido: Annotated[str, Field(min_length=1)]
+    established_on: date | None = None
+
+    # KSIC 매핑 input — service 가 `lookup_first_ksic_code` 호출, Company
+    # 컬럼에는 결과 코드 (`industry_ksic_code`) 만 저장. `business_types`
+    # 자체는 미저장.
+    business_types: tuple[str, ...] = ()
+
+    # 인증 6종 (선택, `CERTIFICATIONS` 부분집합)
+    certifications: tuple[str, ...] = ()
+
+    # Q46 — UUID list, 정확히 3개. commit 8 가 Project M2M 에 적재.
+    fields_of_work_ids: tuple[UUID, UUID, UUID]
+
+    @field_validator("biz_reg_no")
+    @classmethod
+    def _strip_biz_reg_no(cls, v: str) -> str:
+        digits = normalize_to_digits(v)
+        if digits is None:
+            raise ValueError("biz_reg_no는 10자리 숫자여야 합니다")
+        return digits
+
+    @field_validator("corporate_type")
+    @classmethod
+    def _check_corporate_type(cls, v: str) -> str:
+        if v not in CORPORATE_TYPES:
+            raise ValueError(f"corporate_type은 {CORPORATE_TYPES} 중 하나여야 합니다")
+        return v
+
+    @field_validator("certifications")
+    @classmethod
+    def _check_certifications(cls, v: tuple[str, ...]) -> tuple[str, ...]:
+        invalid = set(v) - set(CERTIFICATIONS)
+        if invalid:
+            raise ValueError(
+                f"인증 항목은 {CERTIFICATIONS} 중에서만 선택 가능합니다 (잘못된 값: {sorted(invalid)})"
+            )
+        return v
+
+    @field_validator("fields_of_work_ids")
+    @classmethod
+    def _unique_fields_of_work(cls, v: tuple[UUID, UUID, UUID]) -> tuple[UUID, UUID, UUID]:
+        if len(set(v)) != len(v):
+            raise ValueError("fields_of_work_ids는 서로 다른 3개여야 합니다")
+        return v
+
+
+class OnboardingCompleteResponse(BaseModel):
+    """commit 7 응답 — `company_id` 반환. commit 8 가 `project_id` 추가."""
+
+    model_config = ConfigDict(frozen=True)
+    company_id: int
+
+
+__all__ = ["OcrBizRegResponse", "OnboardingCompleteRequest", "OnboardingCompleteResponse"]

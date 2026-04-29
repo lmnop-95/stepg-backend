@@ -33,6 +33,7 @@ from typing import Final
 
 import httpx
 from pydantic import BaseModel, ConfigDict, ValidationError
+from stepg_core.core.biz_reg_no import normalize_to_digits
 from stepg_core.core.config import get_settings
 from stepg_core.core.errors import HttpFetchError, OcrCallError
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, fetch_with_retry
@@ -50,7 +51,6 @@ _API_VERSION: Final[str] = "V2"
 _REQUEST_IMAGE_NAME: Final[str] = "biz_license"
 
 _KOREAN_DATE_RE = re.compile(r"^\s*(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*$")
-_BIZ_REG_NO_NON_DIGITS_RE = re.compile(r"\D+")
 
 # Q29 whitelist: jpg/jpeg/png/pdf only. tif/tiff excluded — Phase 1.5 lift.
 # `image/jpg` (non-standard) is normalized to `image/jpeg` upstream by
@@ -85,14 +85,6 @@ class _ClovaErrorBody(BaseModel):
     model_config = ConfigDict(extra="ignore")
     code: str = ""
     message: str = ""
-
-
-def _strip_biz_reg_no(raw: str) -> str | None:
-    """Pitfalls D: store as 10-digit raw, dashes etc. removed."""
-    digits = _BIZ_REG_NO_NON_DIGITS_RE.sub("", raw)
-    if len(digits) != 10:
-        return None
-    return digits
 
 
 def _parse_korean_date(raw: str) -> date | None:
@@ -130,7 +122,7 @@ def _map_to_dto(result: BizLicenseResultRaw) -> OcrBizRegResponse:
         corp_name=_first_text(result.corpName),
         company_name=_first_text(result.companyName),
         representative_names=_all_texts(result.repName),
-        biz_reg_no=_strip_biz_reg_no(biz_reg_raw) if biz_reg_raw else None,
+        biz_reg_no=normalize_to_digits(biz_reg_raw) if biz_reg_raw else None,
         corp_reg_no=_first_text(result.corpRegisterNum),
         business_address=_first_text(result.bisAddress),
         head_address=_first_text(result.headAddress),

@@ -16,16 +16,28 @@ remains internal-only — never echoed to FE (Q2 pass3 contract).
 from __future__ import annotations
 
 import logging
-from typing import Final
+from typing import TYPE_CHECKING, Final
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy.exc import IntegrityError
+from stepg_core.core.db import get_session
 from stepg_core.core.errors import OcrCallError
-from stepg_core.features.onboarding.schemas import OcrBizRegResponse
+from stepg_core.features.onboarding.schemas import (
+    OcrBizRegResponse,
+    OnboardingCompleteRequest,
+    OnboardingCompleteResponse,
+)
+from stepg_core.features.onboarding.service import complete_onboarding
 from stepg_core.features.onboarding.sources.clova_bizlicense import recognize_bizlicense
 from stepg_core.features.onboarding.upload_validator import (
     MAX_UPLOAD_BYTES,
     validate_upload,
 )
+
+from stepg_api.auth.deps import get_current_user_id
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +79,20 @@ _OCR_ERROR_KO: Final[dict[str, str]] = {
 
 _OCR_FALLBACK_KO: Final[str] = "OCR 처리 중 오류가 발생했습니다."
 
+# Q1 pass5 — `POST /onboarding/complete` 의 IntegrityError 분기 매핑.
+# `Company` 의 두 UNIQUE 제약 (`uq_companies_biz_reg_no` / `uq_companies_user_id`)
+# 이 정상 시나리오 (FE 중복 클릭 / 동일 사업자번호 입력 / DEV_USER_ID=1 반복) 에서
+# 발화 — 500 으로 누설하지 않고 409 + ko-KR detail. constraint name 을 anchor
+# 로 분기 (column name 매칭 대신 — DB 마이그레이션 0003 와 1:1).
+_BIZ_REG_NO_UNIQUE_CONSTRAINT: Final[str] = "uq_companies_biz_reg_no"
+_USER_ID_UNIQUE_CONSTRAINT: Final[str] = "uq_companies_user_id"
+
+_ONBOARDING_ERROR_KO: Final[dict[str, str]] = {
+    "company_already_exists": "이미 등록된 사업자등록번호입니다.",
+    "user_onboarding_exists": "이미 온보딩을 완료한 사용자입니다.",
+}
+_ONBOARDING_FALLBACK_KO: Final[str] = "온보딩 처리 중 충돌이 발생했습니다."
+
 
 def _to_http_exception(e: OcrCallError) -> HTTPException:
     return HTTPException(
@@ -76,6 +102,26 @@ def _to_http_exception(e: OcrCallError) -> HTTPException:
             "message": _OCR_ERROR_KO.get(e.code, _OCR_FALLBACK_KO),
         },
     )
+
+
+def _classify_onboarding_integrity_error(error: IntegrityError) -> str:
+    """Map a Postgres unique-constraint violation to a snake_case domain code.
+
+    `IntegrityError.orig` is the raw psycopg2/asyncpg `UniqueViolationError`;
+    its string form contains the constraint name we declared in migration 0003
+    (`uq_companies_biz_reg_no` / `uq_companies_user_id`). Matching on the
+    constraint identifier is more robust than column-name substring matching
+    because future migrations may rename columns without renaming the
+    constraint.
+    """
+    raw = str(error.orig) if error.orig is not None else str(error)
+    if _BIZ_REG_NO_UNIQUE_CONSTRAINT in raw:
+        return "company_already_exists"
+    if _USER_ID_UNIQUE_CONSTRAINT in raw:
+        return "user_onboarding_exists"
+    # Other UNIQUE/FK violations are unexpected here — surface to the generic
+    # fallback so observability still flags them, but keep the FE detail KO.
+    return ""
 
 
 async def _read_with_size_guard(upload: UploadFile, max_bytes: int) -> bytes:
@@ -118,6 +164,42 @@ async def post_ocr(file: UploadFile = File(...)) -> OcrBizRegResponse:
         return await recognize_bizlicense(content, canonical_mime)
     except OcrCallError as e:
         raise _to_http_exception(e) from e
+
+
+@router.post("/complete", response_model=OnboardingCompleteResponse)
+async def post_complete(
+    request: OnboardingCompleteRequest,
+    user_id: int = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_session),
+) -> OnboardingCompleteResponse:
+    """OCR 검수 완료 input 으로 `Company` 1건 적재 (commit 7).
+
+    `fields_of_work_ids` 는 input contract 에 포함되나 commit 7 에서는
+    Pydantic validate (3개 unique) 만 — commit 8 가 default `Project` 생성 +
+    `project_fields_of_work` M2M 삽입에 사용. commit 8 시점에 이 route 의
+    응답이 `{company_id, project_id}` 로 확장 + service 가 atomic tx wrap.
+
+    NextAuth JWT 인증은 commit 9 가 `auth/deps.py::get_current_user_id` 의
+    body 를 swap 하여 추가 (route 시그니처 변동 없음, Q37).
+
+    `Company` 의 UNIQUE 제약 (`biz_reg_no` / `user_id`) 위반은 정상 시나리오
+    (FE 중복 클릭 / 동일 사업자번호 / `DEV_USER_ID=1` 반복) 에서 발화 — 500
+    으로 누설하지 않고 409 + ko-KR detail (Q1 pass5).
+    """
+    try:
+        company = await complete_onboarding(session, request, user_id)
+        await session.commit()
+    except IntegrityError as e:
+        await session.rollback()
+        code = _classify_onboarding_integrity_error(e)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": code or "onboarding_conflict",
+                "message": _ONBOARDING_ERROR_KO.get(code, _ONBOARDING_FALLBACK_KO),
+            },
+        ) from e
+    return OnboardingCompleteResponse(company_id=company.id)
 
 
 __all__ = ["router"]

@@ -195,6 +195,118 @@
         "title": "OcrBizRegResponse",
         "type": "object"
       },
+      "OnboardingCompleteRequest": {
+        "description": "`POST /onboarding/complete` \uc785\ub825 \u2014 \uc0ac\uc6a9\uc790 \uac80\uc218 \ud6c4 \ucd5c\uc885 \ud655\uc815\uac12.\n\nQ50 \ub2e8\uc77c schema: `Company` \uceec\ub7fc\uacfc 1:1 mirror + KSIC \ub9e4\ud551 input\n(`business_types`, service \ub2e8 `lookup_first_ksic_code` \uc785\ub825) +\n`fields_of_work_ids` (commit 8 `Project` M2M \uc801\uc7ac input, commit 7 \uc5d0\uc11c\ub294\nPydantic validate \ub9cc).\n\nOCR confirmed \uc911 `corp_name`/`representative_name`/`address` \ub4f1\uc740 Phase 1\n`Company` \ubbf8\uc800\uc7a5 (pitfalls D \u2014 preview only). \ubcf8 schema \ub3c4 \ubc1b\uc9c0 \uc54a\uc74c.\n\uc800\uc7a5 \uceec\ub7fc\ub9cc input contract \uc5d0 \ud3ec\ud568.",
+        "properties": {
+          "biz_reg_no": {
+            "title": "Biz Reg No",
+            "type": "string"
+          },
+          "business_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Types",
+            "type": "array"
+          },
+          "certifications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Certifications",
+            "type": "array"
+          },
+          "corporate_type": {
+            "title": "Corporate Type",
+            "type": "string"
+          },
+          "employee_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Count"
+          },
+          "established_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Established On"
+          },
+          "fields_of_work_ids": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "format": "uuid",
+                "type": "string"
+              }
+            ],
+            "title": "Fields Of Work Ids",
+            "type": "array"
+          },
+          "revenue_last_year": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Last Year"
+          },
+          "sido": {
+            "minLength": 1,
+            "title": "Sido",
+            "type": "string"
+          }
+        },
+        "required": [
+          "biz_reg_no",
+          "corporate_type",
+          "sido",
+          "fields_of_work_ids"
+        ],
+        "title": "OnboardingCompleteRequest",
+        "type": "object"
+      },
+      "OnboardingCompleteResponse": {
+        "description": "commit 7 \uc751\ub2f5 \u2014 `company_id` \ubc18\ud658. commit 8 \uac00 `project_id` \ucd94\uac00.",
+        "properties": {
+          "company_id": {
+            "title": "Company Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "company_id"
+        ],
+        "title": "OnboardingCompleteResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -259,6 +371,48 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/onboarding/complete": {
+      "post": {
+        "description": "OCR \uac80\uc218 \uc644\ub8cc input \uc73c\ub85c `Company` 1\uac74 \uc801\uc7ac (commit 7).\n\n`fields_of_work_ids` \ub294 input contract \uc5d0 \ud3ec\ud568\ub418\ub098 commit 7 \uc5d0\uc11c\ub294\nPydantic validate (3\uac1c unique) \ub9cc \u2014 commit 8 \uac00 default `Project` \uc0dd\uc131 +\n`project_fields_of_work` M2M \uc0bd\uc785\uc5d0 \uc0ac\uc6a9. commit 8 \uc2dc\uc810\uc5d0 \uc774 route \uc758\n\uc751\ub2f5\uc774 `{company_id, project_id}` \ub85c \ud655\uc7a5 + service \uac00 atomic tx wrap.\n\nNextAuth JWT \uc778\uc99d\uc740 commit 9 \uac00 `auth/deps.py::get_current_user_id` \uc758\nbody \ub97c swap \ud558\uc5ec \ucd94\uac00 (route \uc2dc\uadf8\ub2c8\ucc98 \ubcc0\ub3d9 \uc5c6\uc74c, Q37).\n\n`Company` \uc758 UNIQUE \uc81c\uc57d (`biz_reg_no` / `user_id`) \uc704\ubc18\uc740 \uc815\uc0c1 \uc2dc\ub098\ub9ac\uc624\n(FE \uc911\ubcf5 \ud074\ub9ad / \ub3d9\uc77c \uc0ac\uc5c5\uc790\ubc88\ud638 / `DEV_USER_ID=1` \ubc18\ubcf5) \uc5d0\uc11c \ubc1c\ud654 \u2014 500\n\uc73c\ub85c \ub204\uc124\ud558\uc9c0 \uc54a\uace0 409 + ko-KR detail (Q1 pass5).",
+        "operationId": "post_complete_onboarding_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingCompleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Complete",
+        "tags": [
+          "onboarding"
+        ]
       }
     },
     "/onboarding/ocr": {
