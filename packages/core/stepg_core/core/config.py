@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: SecretStr | None = None
+    anthropic_model: str = Field(
+        default="claude-sonnet-4-6",
+        description="Anthropic model ID for M4 extraction. Staging/prod 검증 시 모델 교체 가능.",
+    )
     openai_api_key: SecretStr | None = None
     clova_ocr_url: str | None = None
     clova_ocr_secret: SecretStr | None = None

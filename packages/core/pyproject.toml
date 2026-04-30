@@ -5,6 +5,7 @@ description = "stepg shared core (config, db, http, errors, features)"
 requires-python = ">=3.14"
 dependencies = [
     "alembic>=1.14",
+    "anthropic>=0.43",
     "asyncpg>=0.31",
     "easyocr>=1.7",
     "httpx>=0.28",
