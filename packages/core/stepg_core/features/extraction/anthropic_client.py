@@ -21,32 +21,20 @@ tool_choice 강제, tool arguments 파싱) 은 commit 4 (`prompts.py` + `service
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any
+from typing import Any, get_args
 
 from anthropic import AsyncAnthropic
 from stepg_core.core.config import get_settings
+from stepg_core.features.extraction.schemas import (
+    CertificationLiteral,
+    FundingUseLiteral,
+)
 
-# ARCHITECTURE.md §4.1 + §8.2 — 6종 인증 enum (Posting eligibility +
-# Company.certifications 양쪽 동일 SoT).
-_CERTIFICATION_ENUM: list[str] = [
-    "벤처기업",
-    "이노비즈",
-    "메인비즈",
-    "여성기업",
-    "장애인기업",
-    "소셜벤처",
-]
-
-# ARCHITECTURE.md §4.2 — funding_uses 7종 enum.
-_FUNDING_USES_ENUM: list[str] = [
-    "R&D",
-    "시설투자",
-    "채용",
-    "수출",
-    "교육",
-    "운영자금",
-    "기타",
-]
+# 6종 인증 / 7종 funding_uses enum — `schemas.py` Pydantic Literal이 SoT, `get_args`로
+# list 추출 (Pass 5 critic F3 dual SoT 회피). ARCHITECTURE.md §4.1 / §8.2 / §4.2 SoT
+# 변경 시 `schemas.py`만 갱신 → 본 list 자동 동기.
+_CERTIFICATION_ENUM: list[str] = list(get_args(CertificationLiteral))
+_FUNDING_USES_ENUM: list[str] = list(get_args(FundingUseLiteral))
 
 # PROMPTS.md §1.1 — EligibilityRules 18 필드 inline schema. 갱신 시: 필드명 / type
 # / nullable / 6종 인증 enum / KSIC 양식 변경 = 본 dict + Pydantic
