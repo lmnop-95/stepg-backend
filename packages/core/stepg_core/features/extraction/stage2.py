@@ -37,7 +37,7 @@ from stepg_core.features.extraction.taxonomy_cache import (
 # 마이그레이션 0013) SoT 인용. DB CHECK constraint 가 invalid 적재 시점에 강제 — 본 코드
 # 는 row 빌더 양식 mirror.
 AUDIT_INVALID_TAG = "STAGE2_INVALID_TAG"
-_AUDIT_INVALID_FIELD = "STAGE2_INVALID_FIELD"
+AUDIT_INVALID_FIELD = "STAGE2_INVALID_FIELD"
 
 # `PROMPTS.md §6` step 5 — eligibility 18 필드 type별 fallback. 16 nullable 필드는
 # null, 2 non-nullable은 type default (`prior_recipients_excluded=False`,
@@ -101,7 +101,7 @@ def _build_invalid_field_row(
     """
     return {
         "posting_id": posting_id,
-        "action": _AUDIT_INVALID_FIELD,
+        "action": AUDIT_INVALID_FIELD,
         "before": {
             "field": field_name,
             "raw_value": raw_value,
