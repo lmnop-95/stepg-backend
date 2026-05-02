@@ -36,7 +36,7 @@ from stepg_core.features.extraction.taxonomy_cache import (
 # Audit action constants — `features/review/models.py::AUDIT_ACTIONS` (M1 schema +
 # 마이그레이션 0013) SoT 인용. DB CHECK constraint 가 invalid 적재 시점에 강제 — 본 코드
 # 는 row 빌더 양식 mirror.
-_AUDIT_INVALID_TAG = "STAGE2_INVALID_TAG"
+AUDIT_INVALID_TAG = "STAGE2_INVALID_TAG"
 _AUDIT_INVALID_FIELD = "STAGE2_INVALID_FIELD"
 
 # `PROMPTS.md §6` step 5 — eligibility 18 필드 type별 fallback. 16 nullable 필드는
@@ -76,7 +76,7 @@ def _build_invalid_tag_row(
     """
     return {
         "posting_id": posting_id,
-        "action": _AUDIT_INVALID_TAG,
+        "action": AUDIT_INVALID_TAG,
         "before": {"raw_path": raw_path, "confidence": confidence},
         "after": {
             "reason": "invalid_tag_dropped",
