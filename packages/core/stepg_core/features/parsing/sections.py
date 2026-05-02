@@ -36,6 +36,11 @@ _HEADER_ALIASES: Final[dict[str, tuple[str, ...]]] = {
     "deadline": ("신청기간", "접수기간", "마감일", "신청마감"),
 }
 
+SECTION_KEYS: Final[tuple[str, ...]] = tuple(_HEADER_ALIASES.keys())
+"""5 키 SoT — `_HEADER_ALIASES` derive. M4 prompt builder
+(`features/extraction/prompts.py`)가 LLM reading 양식 (`target → support →
+documents → eligibility → deadline` 순서) 으로 import — 본 모듈 SoT 단일."""
+
 # 번호 / bullet prefix 허용 (Q50): 숫자 (`1.`, `1)`), 한글 동그라미
 # (`①`-`⑩`), 일반 bullet (`□`, `○`, `●`, `■`, `▶`, `◇`, `◆`, `※`).
 _BULLET_PREFIX = r"[-\d①-⑩.)\s□○●■▶◇◆※·]*"
@@ -105,4 +110,4 @@ def split_sections(paragraphs: list[str]) -> dict[str, str]:
     return {key: "\n\n".join(buf) for key, buf in sections.items()}
 
 
-__all__ = ["split_sections"]
+__all__ = ["SECTION_KEYS", "split_sections"]
