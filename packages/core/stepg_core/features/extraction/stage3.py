@@ -79,19 +79,19 @@ def evaluate_stage3(stage2_result: Stage2Result) -> Stage3Decision:
 
     reasons: list[str] = []
     if invalid_tag_count >= 1:
-        reasons.append(f"invalid 태그 {invalid_tag_count}건 검출")
+        reasons.append(f"유효하지 않은 태그 {invalid_tag_count}건 검출")
     if low_conf_tag_count > _LOW_CONF_COUNT_THRESHOLD:
         reasons.append(
-            f"low-confidence 태그 {low_conf_tag_count}건 "
+            f"저신뢰 태그 {low_conf_tag_count}건 "
             f"(>{_LOW_CONF_COUNT_THRESHOLD} 임계, <{_LOW_CONF_THRESHOLD} 신뢰도)"
         )
     if low_conf_field_count > _LOW_CONF_COUNT_THRESHOLD:
         reasons.append(
-            f"low-confidence eligibility 필드 {low_conf_field_count}건 "
+            f"저신뢰 신청자격 필드 {low_conf_field_count}건 "
             f"(>{_LOW_CONF_COUNT_THRESHOLD} 임계, <{_LOW_CONF_THRESHOLD} 신뢰도)"
         )
     if valid_tag_count == 0:
-        reasons.append("valid 태그 0건 (Tag Match 입력 부재)")
+        reasons.append("유효 태그 0건 (태그 매칭 입력 부재)")
 
     return Stage3Decision(needs_review=bool(reasons), reasons=tuple(reasons))
 
