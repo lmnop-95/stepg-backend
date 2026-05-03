@@ -5,6 +5,7 @@ from arq import cron
 from arq.connections import RedisSettings
 from stepg_core.core.config import get_settings
 from stepg_core.core.logging import configure_logging
+from stepg_core.features.extraction.anthropic_client import aclose_if_initialized
 from stepg_core.features.ingestion.service import ingest_postings
 
 logger = logging.getLogger(__name__)
@@ -36,3 +37,7 @@ class WorkerSettings:
     @staticmethod
     async def on_startup(ctx: dict[str, Any]) -> None:  # noqa: ARG004 — ARQ ctx 시그니처 고정
         configure_logging()
+
+    @staticmethod
+    async def on_shutdown(ctx: dict[str, Any]) -> None:  # noqa: ARG004 — ARQ ctx 시그니처 고정
+        await aclose_if_initialized(logger)

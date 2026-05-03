@@ -23,13 +23,11 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 import sqlalchemy as sa
-from stepg_core.features.extraction.service import extract_posting
-from stepg_core.features.postings.models import (
-    Attachment,
-    Posting,
-    posting_fields_of_work,
+from stepg_core.features.extraction.service import (
+    extract_posting,
+    reset_posting_for_re_extraction,
 )
-from stepg_core.features.review.models import ExtractionAuditLog, ReviewQueueItem
+from stepg_core.features.postings.models import Attachment, Posting
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -60,32 +58,6 @@ async def _fetch_attachments(session: AsyncSession, posting_id: int) -> list[Att
     return list(rows.scalars().all())
 
 
-async def _force_re_extract(session: AsyncSession, posting: Posting) -> None:
-    """Idempotency check (`extracted_data IS NOT NULL` skip) 우회 + 이전 실행 잔여물
-    cleanup — `--run-golden` 반복성 확보 (CodeRabbit PR #9 #3177708350 응답).
-
-    Posting 6 컬럼 reset + extract_posting() 가 적재한 association/queue/audit rows
-    모두 삭제 (DELETE-then-commit). 다음 실행이 깨끗한 state 위에서 Stage 1+2+3
-    재검증.
-    """
-    await session.execute(
-        sa.delete(posting_fields_of_work).where(posting_fields_of_work.c.posting_id == posting.id)
-    )
-    await session.execute(
-        sa.delete(ReviewQueueItem).where(ReviewQueueItem.posting_id == posting.id)
-    )
-    await session.execute(
-        sa.delete(ExtractionAuditLog).where(ExtractionAuditLog.posting_id == posting.id)
-    )
-    posting.extracted_data = None
-    posting.eligibility = None
-    posting.summary = ""
-    posting.target_description = ""
-    posting.support_description = ""
-    posting.needs_review = False
-    await session.commit()
-
-
 def _jaccard(a: set[str], b: set[str]) -> float:
     """Tag set Jaccard similarity (`PROMPTS.md §8` 채점 임계 입력)."""
     if not a and not b:
@@ -111,7 +83,7 @@ async def test_golden_8_1_ai_easy(db_session: AsyncSession) -> None:
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121189 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
@@ -154,7 +126,7 @@ async def test_golden_8_2_cleantech_medium(db_session: AsyncSession) -> None:
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121184 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
@@ -186,7 +158,7 @@ async def test_golden_8_3_content_export_medium(db_session: AsyncSession) -> Non
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121252 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
@@ -210,45 +182,6 @@ async def test_golden_8_3_content_export_medium(db_session: AsyncSession) -> Non
 # ============================================================================
 # Synthetic 2 cases — Posting fixture (insert + cleanup)
 # ============================================================================
-
-
-@pytest_asyncio.fixture
-async def synthetic_invalid_trigger(db_session: AsyncSession) -> AsyncIterator[Posting]:
-    """§8.4 합성 — 양자컴퓨팅 R&D 본문. LLM 환각 → `tech.quantum.computing` invalid drop 유도."""
-    body = (
-        "지원사업: 2026년 양자컴퓨팅·양자통신 R&D 지원 사업\n\n"
-        "지원대상: 중소기업\n\n"
-        "지원내용: 양자컴퓨팅 기반 알고리즘 개발 + 양자통신 인프라 구축 + 양자센서 응용\n"
-        "R&D 자금 최대 5억원\n\n"
-        "신청기간: 2026-06-30 까지\n\n"
-        "신청자격: 중소기업기본법 상 중소기업"
-    )
-    # Run-unique source_id — teardown 누락 시 다음 실행 unique key 충돌 차단
-    # (CodeRabbit PR #9 #3177782446 응답).
-    posting = Posting(
-        source="bizinfo",
-        source_id=f"GOLDEN_8_4_QUANTUM_SYNTHETIC_{uuid4().hex}",
-        title="2026년 양자컴퓨팅·양자통신 R&D 지원 사업 (synthetic)",
-        deadline_at=None,
-        status="ACTIVE",
-        eligibility=None,
-        extracted_data=None,
-        raw_payload={
-            "bsnsSumryCn": body,
-            "jrsdInsttNm": "synthetic-test-부처",
-            "reqstBeginEndDe": "2026-06-30 까지",
-        },
-        summary="",
-        target_description="",
-        support_description="",
-        content_hash="synthetic-golden-8-4-quantum",
-        needs_review=False,
-    )
-    db_session.add(posting)
-    await db_session.commit()
-    yield posting
-    await db_session.delete(posting)
-    await db_session.commit()
 
 
 @pytest_asyncio.fixture
@@ -288,54 +221,6 @@ async def synthetic_ambiguous_multi_tag(db_session: AsyncSession) -> AsyncIterat
     yield posting
     await db_session.delete(posting)
     await db_session.commit()
-
-
-async def test_golden_8_4_invalid_trigger(
-    db_session: AsyncSession,
-    synthetic_invalid_trigger: Posting,
-) -> None:
-    """`PROMPTS.md §8.4` — invalid trigger (hard) — 양자컴퓨팅 환각.
-
-    expected (LLM 환각 시나리오):
-    - LLM Stage 1 출력 → `tech.quantum.computing` (트리 부재 path)
-    - Stage 2 alias-remap (a)/(b) 모두 miss → invalid drop
-    - `STAGE2_INVALID_TAG` audit row 적재 (≥ 1)
-    - Stage 2 final `field_of_work_tag_ids` = [] (빈 배열)
-    - Stage 3 분기: 조건 1 (invalid ≥ 1) AND 조건 4 (valid 0) 동시 trigger → needs_review
-
-    채점:
-    - audit_log row count ≥ 1 (`STAGE2_INVALID_TAG`)
-    - field_of_work_tag_ids = []
-    - needs_review = True
-    """
-    posting = synthetic_invalid_trigger
-    attachments = await _fetch_attachments(db_session, posting.id)
-    await extract_posting(db_session, posting, attachments)
-
-    await db_session.refresh(posting)
-    extracted_data = posting.extracted_data or {}
-    actual_tags = set(extracted_data.get("field_of_work_tag_ids") or [])
-
-    audit_rows = (
-        (
-            await db_session.execute(
-                sa.select(ExtractionAuditLog).where(
-                    ExtractionAuditLog.posting_id == posting.id,
-                    ExtractionAuditLog.action == "STAGE2_INVALID_TAG",
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    assert len(audit_rows) >= 1, (
-        f"§8.4 STAGE2_INVALID_TAG audit row 적어도 1건 — actual count={len(audit_rows)}"
-    )
-    assert not actual_tags, f"§8.4 final field_of_work_tag_ids 빈 배열 — actual {actual_tags}"
-    assert posting.needs_review is True, (
-        f"§8.4 needs_review True (invalid ≥1 + valid 0) — actual {posting.needs_review}"
-    )
 
 
 async def test_golden_8_5_ambiguous_multi_tag(

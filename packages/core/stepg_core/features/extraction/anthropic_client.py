@@ -21,7 +21,7 @@ tool_choice 강제, tool arguments 파싱) 은 commit 4 (`prompts.py` + `service
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 from anthropic import AsyncAnthropic
 from stepg_core.core.config import get_settings
@@ -29,6 +29,9 @@ from stepg_core.features.extraction.schemas import (
     CertificationLiteral,
     FundingUseLiteral,
 )
+
+if TYPE_CHECKING:
+    import logging
 
 # 6종 인증 / 7종 funding_uses enum — `schemas.py` Pydantic Literal이 SoT, `get_args`로
 # list 추출 (Pass 5 critic F3 dual SoT 회피). ARCHITECTURE.md §4.1 / §8.2 / §4.2 SoT
@@ -300,4 +303,21 @@ def get_anthropic_client() -> AsyncAnthropic:
     )
 
 
-__all__ = ["EXTRACT_POSTING_DATA_TOOL", "get_anthropic_client"]
+async def aclose_if_initialized(logger: logging.Logger) -> None:
+    """Lifespan shutdown — singleton 미초기화 시 skip + broad Exception swallow + log + cache_clear.
+
+    CodeRabbit #3178194330: Anthropic SDK `close()` 후 instance unusable
+    (`The client will *not* be usable after this`) — lru_cache 안 stale instance
+    잔존 차단. process exit 시점은 GC 자동 회수이지만 test/manual restart 시 안전.
+    """
+    if get_anthropic_client.cache_info().currsize > 0:
+        client = get_anthropic_client()
+        try:
+            await client.close()
+        except Exception as exc:
+            logger.warning("anthropic 클라이언트 종료 실패: %s", exc, exc_info=True)
+        finally:
+            get_anthropic_client.cache_clear()
+
+
+__all__ = ["EXTRACT_POSTING_DATA_TOOL", "aclose_if_initialized", "get_anthropic_client"]
