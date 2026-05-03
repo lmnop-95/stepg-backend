@@ -167,7 +167,7 @@ client.messages.create(
 }
 ```
 
-**eligibility inline expand (SDK builder 책임)**: 위 fenced JSON 의 `eligibility` description 은 LLM-bound 본문만 박힘. SDK 호출 시 builder 코드는 PROMPTS.md §1.1 의 18 필드 `properties` / `required` 를 본 자리에 inline expand 해서 박는다 — Anthropic tool input_schema 가 `$ref`/`$defs` 미지원 (`§0` mandate). §1.1 갱신 시 builder 코드 동기 갱신 필수. cache invalidation 결정성 위해 모든 description bytes 는 본 §1 SoT 와 byte-match (M4 `features/extraction/anthropic_client.py::EXTRACT_POSTING_DATA_TOOL`).
+**eligibility inline expand (SDK builder 책임)**: 위 fenced JSON 의 `eligibility` description 은 LLM-bound 본문만 박힘. SDK 호출 시 builder 코드는 PROMPTS.md §1.1 의 18 필드 `properties` / `required` 를 본 자리에 inline expand 해서 박는다 — Anthropic tool input_schema 가 `$ref`/`$defs` 미지원 (`§0` mandate). §1.1 갱신 시 builder 코드 동기 갱신 필수. cache invalidation 결정성 위해 모든 description bytes 는 본 §1 + §1.1 SoT 와 byte-match (M4 `features/extraction/anthropic_client.py::EXTRACT_POSTING_DATA_TOOL`).
 
 **12 top-level 필드 mirror 표** (`ARCHITECTURE.md §4.2` 기준 — 변경 시 본 표도 같이 갱신. `eligibility` 의 18 nested 필드는 §1.1 별도 표):
 
