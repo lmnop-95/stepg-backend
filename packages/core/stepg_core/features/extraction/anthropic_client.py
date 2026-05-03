@@ -25,13 +25,13 @@ from typing import TYPE_CHECKING, Any, get_args
 
 from anthropic import AsyncAnthropic
 from stepg_core.core.config import get_settings
-
-if TYPE_CHECKING:
-    import logging
 from stepg_core.features.extraction.schemas import (
     CertificationLiteral,
     FundingUseLiteral,
 )
+
+if TYPE_CHECKING:
+    import logging
 
 # 6종 인증 / 7종 funding_uses enum — `schemas.py` Pydantic Literal이 SoT, `get_args`로
 # list 추출 (Pass 5 critic F3 dual SoT 회피). ARCHITECTURE.md §4.1 / §8.2 / §4.2 SoT
