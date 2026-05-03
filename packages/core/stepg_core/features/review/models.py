@@ -34,8 +34,16 @@ AUDIT_ACTIONS: tuple[str, ...] = (
     "EDIT",
     "MANUAL_INSERT",
     "REJECT",
+    # M4 Stage 2 system actions (invalid 로깅, actor=null):
+    # PROMPTS.md §6 step 3 = TAG trigger + 로깅 양식 SoT
+    # PROMPTS.md §6 step 5 = FIELD trigger (eligibility schema 위반)
+    "STAGE2_INVALID_TAG",
+    "STAGE2_INVALID_FIELD",
 )
-"""ExtractionAuditLog mutation 종류. AUTO vs MANUAL 구분이 audit context (Q72)."""
+"""ExtractionAuditLog mutation 종류. AUTO vs MANUAL / SYSTEM 3 buckets (Q72).
+M4 STAGE2_INVALID_TAG = LLM 환각 / 택소노미 누락 (PROMPTS.md §6 step 3 trigger).
+M4 STAGE2_INVALID_FIELD = eligibility schema 위반 / 6종 인증 enum / KSIC custom validator 등 (§6 step 5 trigger).
+공통 = system actor (actor_user_id=null), posting_id 단위 row, 로깅 양식 §6 step 3."""
 
 _AUDIT_ACTION_CHECK_SQL = f"action IN ({', '.join(repr(a) for a in AUDIT_ACTIONS)})"
 
@@ -93,8 +101,9 @@ class ExtractionAuditLog(Base):
     (status=REJECTED + reason).
 
     `actor_user_id` NULL has two meanings: (a) SET NULL on user delete to
-    preserve history; (b) `AUTO_APPROVE` actions where the actor is the
-    system (M4 LLM extractor, M8 reconcile cron) — NULL from INSERT.
+    preserve history; (b) `AUTO_APPROVE` / `STAGE2_INVALID_TAG` /
+    `STAGE2_INVALID_FIELD` actions where the actor is the system (M4 LLM
+    extractor + Stage 2 검증, M8 reconcile cron) — NULL from INSERT.
     `posting_id` is RESTRICT to prevent silent loss of audit trail.
     """
 

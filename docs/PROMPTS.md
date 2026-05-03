@@ -56,14 +56,17 @@ client.messages.create(
   "description": "공고 본문·첨부에서 EligibilityRules + 택소노미 태그 + 매칭 메타를 단일 JSON 으로 추출. 모든 신뢰도 필드는 §5 5단계 self-rating 가이드를 따른다.",
   "input_schema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "eligibility": {
         "type": "object",
-        "description": "Hard Filter 입력 18 필드. **본 자리에 §1.1 schema 를 그대로 inline expand 해서 박는다** — 본 §1 표기는 docs 단축. SDK 호출 시 properties / required 전체 인용 필수 (Anthropic tool input_schema 는 $ref/$defs 미보장)."
+        "additionalProperties": false,
+        "description": "Hard Filter 입력 18 필드 nested object. 필드명 / type / nullable / 6종 인증 enum 등은 PROMPTS.md §1.1 SoT."
       },
       "field_of_work_tag_ids": {
         "type": "array",
         "items": {"type": "string"},
+        "uniqueItems": true,
         "description": "택소노미 노드 path (예: 'tech.ai_ml.nlp'). 시스템 프롬프트의 {TAXONOMY_TREE} 에 박힌 path 만 허용."
       },
       "tag_confidence_per_id": {
@@ -164,6 +167,8 @@ client.messages.create(
 }
 ```
 
+**eligibility inline expand (SDK builder 책임)**: 위 fenced JSON 의 `eligibility` description 은 LLM-bound 본문만 박힘. SDK 호출 시 builder 코드는 PROMPTS.md §1.1 의 18 필드 `properties` / `required` 를 본 자리에 inline expand 해서 박는다 — Anthropic tool input_schema 가 `$ref`/`$defs` 미지원 (`§0` mandate). §1.1 갱신 시 builder 코드 동기 갱신 필수. cache invalidation 결정성 위해 모든 description bytes 는 본 §1 + §1.1 SoT 와 byte-match (M4 `features/extraction/anthropic_client.py::EXTRACT_POSTING_DATA_TOOL`).
+
 **12 top-level 필드 mirror 표** (`ARCHITECTURE.md §4.2` 기준 — 변경 시 본 표도 같이 갱신. `eligibility` 의 18 nested 필드는 §1.1 별도 표):
 
 | # | 필드 | 타입 (§4.2) | JSON Schema | nullable |
@@ -256,9 +261,9 @@ client.messages.create(
 |------------|------|------|----------------|
 | `{TAXONOMY_TREE}` | `TAXONOMY.md §5` 트리 100 노드 (markdown 그대로) | ASCII tree + 줄 끝 alias 괄호 + KSIC 콤마 (§5 양식 100% mirror) | 앱 startup 1회 read + 모듈 레벨 캐시 (§2.1) |
 | `{TAXONOMY_BOUNDARY}` | `TAXONOMY.md §5.1` (a) overlap 표 + (b) cross-axis bullet | markdown 표 + bullet 그대로 (변환 X) | 동일 캐시 |
-| `{POSTING_BODY}` | `postings.body` (M2 산출) + M3 `split_sections()` (`packages/.../parsing/sections.py`) | 5 키 합산: `target` (지원대상) / `support` (지원내용) / `documents` (제출서류) / `eligibility` (신청자격) / `deadline` (신청기간). 합산 텍스트 2K chars head cutoff. 5 키 모두 미검출 시 raw `postings.body` 동일 cutoff fallback (sections.py best-effort 정책 일관) | 호출 시 동적 바인딩 (캐시 X) |
-| `{ATTACHMENT_TEXT}` | `attachments.body` (M3 산출) + 첨부별 `split_sections()` | 첨부별 5 키 (`target/support/documents/eligibility/deadline`) 합산 → 첨부 간 `---` separator (파일명 prefix 없이) → 합산 5K head + 2K tail cutoff. 5 키 미검출 첨부는 raw `attachments.body` 로 fallback 후 동일 합산 | 호출 시 동적 바인딩 |
-| `{POSTING_META}` | `postings` row 메타 | 3 line: `수집일: <ISO 8601 postings.created_at>` / `마감일: <ISO 8601 postings.deadline_at, null 시 raw_payload deadline_str fallback (예: "공고 게시일로부터 30일")>` / `소관부처: <postings.raw_payload 의 부처명>` | 호출 시 동적 바인딩 |
+| `{POSTING_BODY}` | `postings.raw_payload['bsnsSumryCn']` (M2 산출, bizinfo 본문 summary HTML) → BeautifulSoup `get_text(separator='\n\n')` HTML→text 정규화 → M3 `split_sections()` (`packages/.../parsing/sections.py`) | 5 키 합산: `target` (지원대상) / `support` (지원내용) / `documents` (제출서류) / `eligibility` (신청자격) / `deadline` (신청기간). 합산 텍스트 2K chars head cutoff. 5 키 모두 미검출 시 plain text 그대로 동일 cutoff fallback (sections.py best-effort 정책 일관) | 호출 시 동적 바인딩 (캐시 X) |
+| `{ATTACHMENT_TEXT}` | `attachments.sections` (M3 산출 dict[str, str], 이미 split 완료) — 빈 첨부는 `attachments.extracted_text` raw fallback | 첨부별 5 키 (`target/support/documents/eligibility/deadline`) 합산 → 첨부 간 `---` separator (파일명 prefix 없이) → 합산 5K head + 2K tail cutoff. head 와 tail 사이는 `[... 중간 생략 ...]` marker 박음 (LLM reading 손실 명시 신호) | 호출 시 동적 바인딩 |
+| `{POSTING_META}` | `postings` row 메타 | 3 line: `수집일: <ISO 8601 KST postings.created_at>` / `마감일: <ISO 8601 KST postings.deadline_at, null 시 raw_payload reqstBeginEndDe fallback (예: "공고 게시일로부터 30일") + 미명시 시 "미명시" literal>` / `소관부처: <postings.raw_payload['jrsdInsttNm'], 미명시 시 "미명시" literal>`. timezone = KST (`+09:00`) — 정부 공고 도메인 자연 reading + LLM 자동 KST 추론 의존 차단 | 호출 시 동적 바인딩 |
 
 ### 2.1 runtime read 정책
 

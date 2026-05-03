@@ -9,8 +9,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNC_DRIVER_PREFIXES = ("postgresql+asyncpg://", "postgresql+psycopg://")
 _REDIS_DSN_PREFIXES = ("redis://", "rediss://")
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_DEFAULT_STORAGE_ROOT = _REPO_ROOT / "storage"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+"""Repository root (editable workspace install 가정 — `parents[4]`가 backend repo
+root). 비-editable 설치(`pip install stepg-core`)에서는 `parents[4]`가 site-packages
+임의 경로가 되므로 의존하면 안 됨; 그런 경우 `Settings.storage_root` 같은 명시 path를
+운영자가 박는다 (`_require_explicit_storage_root_in_prod` validator). M4 features/extraction
+모듈이 `docs/TAXONOMY.md` lazy load 시 본 상수를 import — `parents[N]` 두 곳 dual SoT
+회피."""
+_DEFAULT_STORAGE_ROOT = REPO_ROOT / "storage"
 
 
 class Settings(BaseSettings):
@@ -44,6 +50,10 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: SecretStr | None = None
+    anthropic_model: str = Field(
+        default="claude-sonnet-4-6",
+        description="Anthropic model ID for M4 extraction. Staging/prod 검증 시 모델 교체 가능.",
+    )
     openai_api_key: SecretStr | None = None
     clova_ocr_url: str | None = None
     clova_ocr_secret: SecretStr | None = None
@@ -112,3 +122,6 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()  # pyright: ignore[reportCallIssue]
+
+
+__all__ = ["REPO_ROOT", "Settings", "get_settings"]
