@@ -21,10 +21,13 @@ tool_choice 강제, tool arguments 파싱) 은 commit 4 (`prompts.py` + `service
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 from anthropic import AsyncAnthropic
 from stepg_core.core.config import get_settings
+
+if TYPE_CHECKING:
+    import logging
 from stepg_core.features.extraction.schemas import (
     CertificationLiteral,
     FundingUseLiteral,
@@ -300,4 +303,13 @@ def get_anthropic_client() -> AsyncAnthropic:
     )
 
 
-__all__ = ["EXTRACT_POSTING_DATA_TOOL", "get_anthropic_client"]
+async def aclose_if_initialized(logger: logging.Logger) -> None:
+    """Lifespan shutdown — singleton 미초기화 시 skip + broad Exception swallow + log (double-close / SDK contract 변경 대비)."""
+    if get_anthropic_client.cache_info().currsize > 0:
+        try:
+            await get_anthropic_client().close()
+        except Exception as exc:
+            logger.warning("anthropic 클라이언트 종료 실패: %s", exc, exc_info=True)
+
+
+__all__ = ["EXTRACT_POSTING_DATA_TOOL", "aclose_if_initialized", "get_anthropic_client"]
