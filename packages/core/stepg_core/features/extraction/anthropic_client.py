@@ -193,7 +193,11 @@ EXTRACT_POSTING_DATA_TOOL: dict[str, Any] = {
             "funding_uses": {
                 "type": "array",
                 "items": {"type": "string", "enum": _FUNDING_USES_ENUM},
-                "description": "지원 자금 용도. 위 7 enum 만 허용. 명시되지 않으면 빈 배열.",
+                "description": (
+                    "지원 자금 용도. 위 7 enum 만 허용. 본문에 명시된 항목만 emit — "
+                    "도메인 prior 추정 X (예: '운영비' 명시 부재 시 '기타' 추가 금지). "
+                    "명시되지 않으면 빈 배열."
+                ),
             },
             "support_amount_min": {
                 "type": ["integer", "null"],

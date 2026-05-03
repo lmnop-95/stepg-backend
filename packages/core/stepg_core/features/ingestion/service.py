@@ -47,6 +47,10 @@ from stepg_core.core.db import get_session_factory
 from stepg_core.core.errors import BizinfoSchemaError, HttpFetchError, MissingApiKeyError
 from stepg_core.core.http import DEFAULT_TIMEOUT_SECONDS, stream_to_temp_with_retry
 from stepg_core.core.storage import LocalFsBackend
+from stepg_core.features.extraction.service import (
+    ExtractionBatchResult,
+    extract_postings_batch,
+)
 from stepg_core.features.ingestion.sources.registry import SOURCES
 from stepg_core.features.parsing.service import ParseResult, parse_attachments
 from stepg_core.features.postings.models import Attachment, Posting
@@ -353,14 +357,26 @@ async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ 
                     )
                     posting_ids = [row.id for row in id_rows.all()]
                     parse_result = await parse_attachments(session, posting_ids)
+                # M4 commit 7 — Stage 1+2+3 추출 + DB 적재 (per-posting session
+                # isolation, plan.md commit 7 dual-write invariant). LLM/DB 실패는
+                # demote to warning (M2/M3 패턴 일관).
+                extract_result = await extract_postings_batch(factory, posting_ids)
             else:
                 parse_result = ParseResult(
                     parsed=0, skipped_unsupported=0, failed=0, skipped_idempotent=0
                 )
+                extract_result = ExtractionBatchResult(
+                    extracted=0,
+                    skipped_idempotent=0,
+                    needs_review=0,
+                    auto_approved=0,
+                    failed=0,
+                )
             logger.info(
                 "ingest source=%s received=%d inserted=%d updated=%d "
                 "attachments_attempted=%d parsed=%d skipped_unsupported=%d failed=%d "
-                "skipped_idempotent=%d",
+                "skipped_idempotent=%d extracted=%d ext_skipped_idempotent=%d "
+                "needs_review=%d auto_approved=%d ext_failed=%d",
                 source,
                 result.received,
                 result.inserted,
@@ -370,6 +386,11 @@ async def ingest_postings(ctx: dict[str, Any]) -> None:  # noqa: ARG001 — ARQ 
                 parse_result.skipped_unsupported,
                 parse_result.failed,
                 parse_result.skipped_idempotent,
+                extract_result.extracted,
+                extract_result.skipped_idempotent,
+                extract_result.needs_review,
+                extract_result.auto_approved,
+                extract_result.failed,
             )
             totals = replace(
                 totals,
