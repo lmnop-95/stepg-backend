@@ -157,7 +157,7 @@ async def _collect_metrics(
                 metrics.umbrella_only_postings += 1
             confs: dict[str, Any] = data.get("field_confidence_scores") or {}
             low = sum(
-                1 for v in confs.values() if isinstance(v, (int, float)) and v < _LOW_CONF_THRESHOLD
+                1 for v in confs.values() if isinstance(v, int | float) and v < _LOW_CONF_THRESHOLD
             )
             metrics.low_conf_per_posting.append(low)
 
