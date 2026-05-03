@@ -1,0 +1,215 @@
+"""Pydantic 모델 — `EligibilityRules` (M6 Hard Filter input) + `ExtractedPostingData`
+(full LLM output, `Posting.extracted_data` JSONB 적재 양식).
+
+`docs/ARCHITECTURE.md §4.1` (18 eligibility 필드) + `§4.2` (12 top-level 필드) mirror.
+M4 service boundary 검증 — `Posting.eligibility` / `extracted_data` JSONB 컬럼은
+ORM 측 `dict[str, Any] | None` 약 type, strict shape 은 본 모듈 (`features/postings/models.py`
+docstring line 1-12 SoT).
+
+Stage 2 (`stage2.py`) 가 LLM 출력 → `ExtractedPostingData.model_validate()` 검증 +
+per-field fallback (eligibility 만, `PROMPTS.md §6` step 5). commit 7 service 가
+`extracted.eligibility.model_dump()` → `Posting.eligibility` 컬럼 + `extracted.model_dump()`
+→ `Posting.extracted_data` 컬럼 dual-write (plan.md commit 7 invariant).
+
+KSIC field validator: 숫자만 허용 (대분류 알파벳 prefix 제외, `PROMPTS.md §1.1` line 205
++ `TAXONOMY.md §4.1` SoT). 6종 인증 / 7종 funding_uses Literal enum strict.
+sido 광역명은 free `str` — "전국" / 권역명 등 자유 표현 허용 (Pass 4 critic Q27=2).
+"""
+
+from __future__ import annotations
+
+import re
+from datetime import UTC, datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+# ARCHITECTURE.md §4.1 + §8.2 — 6종 인증 enum (Posting eligibility + Company.certifications
+# 양쪽 동일 SoT). `anthropic_client.py::_CERTIFICATION_ENUM` mirror.
+CertificationLiteral = Literal[
+    "벤처기업",
+    "이노비즈",
+    "메인비즈",
+    "여성기업",
+    "장애인기업",
+    "소셜벤처",
+]
+
+# ARCHITECTURE.md §4.2 — funding_uses 7종 enum.
+# `anthropic_client.py::_FUNDING_USES_ENUM` mirror.
+FundingUseLiteral = Literal[
+    "R&D",
+    "시설투자",
+    "채용",
+    "수출",
+    "교육",
+    "운영자금",
+    "기타",
+]
+
+_KSIC_PATTERN = re.compile(r"^[0-9]{2,5}$")
+
+
+def _empty_funding_uses() -> list[FundingUseLiteral]:
+    """`Field(default_factory=...)` 양식 통일용 typed factory — pyright가 `list` 의
+    element type을 추론 못 해 `list[Unknown]` warning 발생, typed return으로 우회."""
+    return []
+
+
+class EligibilityRules(BaseModel):
+    """`ARCHITECTURE.md §4.1` 18 필드 mirror — M6 Hard Filter SQL where 절 입력.
+
+    18 필드 모두 default 박힘 (LLM omit 안전망) — tool input_schema가 LLM 측에서
+    "absent = explicit null/false/[] 강제" 보장 (`PROMPTS.md §1` line 184). Pydantic
+    측 default는 LLM 응답 변형 시 graceful — Stage 2 fallback과 dual layer.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    corporate_types_allowed: list[str] | None = None
+    corporate_types_excluded: list[str] | None = None
+    employee_count_min: int | None = None
+    employee_count_max: int | None = None
+    revenue_last_year_min: int | None = None
+    revenue_last_year_max: int | None = None
+    years_in_business_min: int | None = None
+    years_in_business_max: int | None = None
+    location_required_sido: list[str] | None = None
+    location_preferred_sido: list[str] | None = None
+    location_excluded_sido: list[str] | None = None
+    industry_ksic_allowed: list[str] | None = None
+    industry_ksic_excluded: list[str] | None = None
+    certifications_required: list[CertificationLiteral] | None = None
+    certifications_preferred: list[CertificationLiteral] | None = None
+    certifications_excluded: list[CertificationLiteral] | None = None
+    prior_recipients_excluded: bool = False
+    free_text_conditions: list[str] = Field(default_factory=list)
+
+    @field_validator("industry_ksic_allowed", "industry_ksic_excluded", mode="after")
+    @classmethod
+    def _validate_ksic_codes(cls, v: list[str] | None) -> list[str] | None:
+        """KSIC 코드는 숫자만 — 대분류 알파벳 prefix 제외 (`PROMPTS.md §1.1` line 205).
+
+        통계청 KSIC 10차 자릿수: 2-5자리 숫자 (중분류~세세분류). 대분류 알파벳 prefix
+        는 외부 DB 양식 — 본 시스템 적재 양식 정합 X.
+        """
+        if v is None:
+            return v
+        for code in v:
+            if not _KSIC_PATTERN.match(code):
+                raise ValueError(f"KSIC 코드는 숫자만 허용 (대분류 알파벳 prefix 제외): {code!r}")
+        return v
+
+    @model_validator(mode="after")
+    def _validate_range_pairs(self) -> EligibilityRules:
+        """3 범위 쌍 (`employee_count_*`, `revenue_last_year_*`, `years_in_business_*`)
+        의 `min > max` 역전 차단 (CodeRabbit PR #8 #3177824863 응답).
+
+        type 만 검증하면 `min=100, max=10` 통과 → M6 Hard Filter SQL where 절이 항상
+        false 가 되거나 정상 공고가 잘못 제외됨. 양 값 둘 다 not None 인 쌍만 검증.
+        """
+        range_pairs = (
+            ("employee_count_min", "employee_count_max"),
+            ("revenue_last_year_min", "revenue_last_year_max"),
+            ("years_in_business_min", "years_in_business_max"),
+        )
+        for min_field, max_field in range_pairs:
+            min_value = getattr(self, min_field)
+            max_value = getattr(self, max_field)
+            if min_value is not None and max_value is not None and min_value > max_value:
+                raise ValueError(
+                    f"{min_field} ({min_value}) 는 {max_field} ({max_value}) 보다 클 수 없습니다."
+                )
+        return self
+
+
+class ExtractedPostingData(BaseModel):
+    """`ARCHITECTURE.md §4.2` 12 top-level 필드 mirror — LLM Stage 1 출력 전체.
+
+    `Posting.extracted_data` JSONB 풀 dump (commit 7) + `eligibility` 별 컬럼
+    (`Posting.eligibility`) dual-write — M6 Hard Filter SQL where 절 빠른 access.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    eligibility: EligibilityRules
+    field_of_work_tag_ids: list[str] = Field(default_factory=list)
+    tag_confidence_per_id: dict[str, float] = Field(default_factory=dict)
+    funding_uses: list[FundingUseLiteral] = Field(default_factory=_empty_funding_uses)
+    support_amount_min: int | None = None
+    support_amount_max: int | None = None
+    deadline_precise: datetime | None = None
+    required_documents: list[str] = Field(default_factory=list)
+    field_confidence_scores: dict[str, float] = Field(default_factory=dict)
+    summary: str = ""
+    target_description: str = ""
+    support_description: str = ""
+
+    @field_validator("deadline_precise", mode="after")
+    @classmethod
+    def _validate_deadline_utc(cls, v: datetime | None) -> datetime | None:
+        """`deadline_precise` 는 timezone-aware UTC 강제 (CLAUDE.md absolute rule A).
+
+        naive datetime 차단 (raise) + 비-UTC 는 `astimezone(UTC)` 정규화 (KST → UTC
+        adapter boundary 정합, CodeRabbit PR #8 #3177707330 응답).
+        """
+        if v is None:
+            return None
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("deadline_precise 는 timezone-aware datetime 이어야 합니다.")
+        return v.astimezone(UTC)
+
+    @field_validator("field_confidence_scores", mode="after")
+    @classmethod
+    def _validate_field_confidence(cls, v: dict[str, float]) -> dict[str, float]:
+        """`field_confidence_scores` 18 키 1:1 + 0-1 범위 강제 (CodeRabbit PR #8
+        #3177784975 응답).
+
+        tool input_schema (`anthropic_client.py`) 가 `additionalProperties: false`
+        + 18 eligibility 키만 허용 + 0-1 범위로 strict 정의 — Pydantic 측도 동일
+        강제 dual SoT. Stage 3 분기 (`needs_review` 조건) 가 `field_confidence_scores.values()`
+        만 세서 저신뢰 카운트 — malformed 페이로드 시 과소계산 차단.
+        """
+        if not v:
+            # 빈 dict default (Field(default_factory=dict) 양식) 는 통과 — Stage 2
+            # 검증 전 raw LLM 출력 받기 전 default state. LLM 출력 시점 (Stage 2
+            # `_validate_eligibility` 후 build) 에서만 strict 강제.
+            return v
+        expected_keys = set(EligibilityRules.model_fields)
+        if set(v) != expected_keys:
+            missing = expected_keys - set(v)
+            extra = set(v) - expected_keys
+            raise ValueError(
+                f"field_confidence_scores 는 EligibilityRules 18 필드와 1:1 이어야 합니다 "
+                f"(missing={sorted(missing)}, extra={sorted(extra)})."
+            )
+        for key, score in v.items():
+            if not 0 <= score <= 1:
+                raise ValueError(
+                    f"field_confidence_scores[{key!r}] 는 0 이상 1 이하여야 합니다 (actual={score})."
+                )
+        return v
+
+    @model_validator(mode="after")
+    def _validate_support_amount_range(self) -> ExtractedPostingData:
+        """`support_amount_min > support_amount_max` 역전 차단 (CodeRabbit PR #8
+        #3177824868 응답). 양 값 둘 다 not None 시만 검증.
+        """
+        if (
+            self.support_amount_min is not None
+            and self.support_amount_max is not None
+            and self.support_amount_min > self.support_amount_max
+        ):
+            raise ValueError(
+                f"support_amount_min ({self.support_amount_min}) 는 "
+                f"support_amount_max ({self.support_amount_max}) 보다 클 수 없습니다."
+            )
+        return self
+
+
+__all__ = [
+    "CertificationLiteral",
+    "EligibilityRules",
+    "ExtractedPostingData",
+    "FundingUseLiteral",
+]
