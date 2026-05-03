@@ -304,12 +304,20 @@ def get_anthropic_client() -> AsyncAnthropic:
 
 
 async def aclose_if_initialized(logger: logging.Logger) -> None:
-    """Lifespan shutdown — singleton 미초기화 시 skip + broad Exception swallow + log (double-close / SDK contract 변경 대비)."""
+    """Lifespan shutdown — singleton 미초기화 시 skip + broad Exception swallow + log + cache_clear.
+
+    CodeRabbit #3178194330: Anthropic SDK `close()` 후 instance unusable
+    (`The client will *not* be usable after this`) — lru_cache 안 stale instance
+    잔존 차단. process exit 시점은 GC 자동 회수이지만 test/manual restart 시 안전.
+    """
     if get_anthropic_client.cache_info().currsize > 0:
+        client = get_anthropic_client()
         try:
-            await get_anthropic_client().close()
+            await client.close()
         except Exception as exc:
             logger.warning("anthropic 클라이언트 종료 실패: %s", exc, exc_info=True)
+        finally:
+            get_anthropic_client.cache_clear()
 
 
 __all__ = ["EXTRACT_POSTING_DATA_TOOL", "aclose_if_initialized", "get_anthropic_client"]

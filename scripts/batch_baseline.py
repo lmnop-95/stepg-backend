@@ -24,10 +24,10 @@ default retry+backoff (max_retries=2) 가 `retry-after` header 활용 회복 양
 | 4 | 400K | 15-20 | ~1-3분 |
 
 Tier 1 default sequential 양식 = burst 회피 + cache TTL 5분 안 안전 (12-15s/call
-× 162 < 5분 cache eviction 회복 cycle).
+x 162 < 5분 cache eviction 회복 cycle).
 
 **Pre-run SOP** (F7 — optional rollback safety, 사용자 manual 실행, Q30=3):
-    pg_dump --table=extraction_audit_log --table=posting_fields_of_work \\
+    pg_dump --table=extraction_audit_logs --table=posting_fields_of_work \\
             stepg > snapshot_v1.sql
 
 **Cost** (실측, 2026-05-03 n=162): ~$5.11 (input $0.39 + output $2.92 +
@@ -72,7 +72,20 @@ from stepg_core.features.review.models import ExtractionAuditLog
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-_CONCURRENCY = int(os.getenv("BASELINE_CONCURRENCY", "1"))
+
+def _load_concurrency() -> int:
+    """`BASELINE_CONCURRENCY` env 검증 — int + ≥1 (CodeRabbit #3178194334)."""
+    raw = os.getenv("BASELINE_CONCURRENCY", "1")
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"BASELINE_CONCURRENCY 값이 숫자가 아닙니다: {raw!r}") from exc
+    if value < 1:
+        raise ValueError(f"BASELINE_CONCURRENCY 는 1 이상의 정수여야 합니다: {value}")
+    return value
+
+
+_CONCURRENCY = _load_concurrency()
 _TARGET_SOURCE = "bizinfo"
 _LOW_CONF_THRESHOLD = 0.7
 _OUTPUT_PATH = Path(__file__).parent.parent / "docs" / "eval" / "m4_baseline.md"
@@ -139,19 +152,21 @@ async def _extract_one(
     semaphore: asyncio.Semaphore,
 ) -> None:
     async with semaphore, session_factory() as session:
-        posting = await session.get(Posting, posting_id)
-        if posting is None:
-            _logger.warning("posting_id=%d 미존재 — 건너뜀", posting_id)
-            return
-        await reset_posting_for_re_extraction(session, posting)
-        att_rows = await session.execute(
-            sa.select(Attachment).where(Attachment.posting_id == posting_id).order_by(Attachment.id)
-        )
-        attachments = list(att_rows.scalars().all())
         try:
+            posting = await session.get(Posting, posting_id)
+            if posting is None:
+                _logger.warning("posting_id=%d 미존재 — 건너뜀", posting_id)
+                return
+            await reset_posting_for_re_extraction(session, posting)
+            att_rows = await session.execute(
+                sa.select(Attachment)
+                .where(Attachment.posting_id == posting_id)
+                .order_by(Attachment.id)
+            )
+            attachments = list(att_rows.scalars().all())
             await extract_posting(session, posting, attachments)
-        except Exception:  # noqa: BLE001 — 모든 LLM/DB 실패 demote to warning
-            _logger.exception("extract_posting 실패 — posting_id=%d", posting_id)
+        except Exception:  # noqa: BLE001 — reset/fetch/LLM/DB 실패 demote to warning, gather isolation (CodeRabbit #3178194335)
+            _logger.exception("extract_one 실패 — posting_id=%d", posting_id)
 
 
 async def _collect_metrics(
@@ -259,7 +274,7 @@ def _format_baseline(
 
 | 테이블 | row count (전체 DB) |
 |--------|-------|
-| `extraction_audit_log` | {metrics.audit_row_count:,} |
+| `extraction_audit_logs` | {metrics.audit_row_count:,} |
 | `posting_fields_of_work` | {metrics.fow_row_count:,} |
 
 baseline_v2 (M4.4 commit 5 re-measurement) 측정 시 `_force_re_extract` DELETE 후 v1 결과 보존 X — 본 표 의 row count + 위 지표 가 trace SoT.
