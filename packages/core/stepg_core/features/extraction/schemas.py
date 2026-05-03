@@ -137,6 +137,37 @@ class ExtractedPostingData(BaseModel):
             raise ValueError("deadline_precise 는 timezone-aware datetime 이어야 합니다.")
         return v.astimezone(UTC)
 
+    @field_validator("field_confidence_scores", mode="after")
+    @classmethod
+    def _validate_field_confidence(cls, v: dict[str, float]) -> dict[str, float]:
+        """`field_confidence_scores` 18 키 1:1 + 0-1 범위 강제 (CodeRabbit PR #8
+        #3177784975 응답).
+
+        tool input_schema (`anthropic_client.py`) 가 `additionalProperties: false`
+        + 18 eligibility 키만 허용 + 0-1 범위로 strict 정의 — Pydantic 측도 동일
+        강제 dual SoT. Stage 3 분기 (`needs_review` 조건) 가 `field_confidence_scores.values()`
+        만 세서 저신뢰 카운트 — malformed 페이로드 시 과소계산 차단.
+        """
+        if not v:
+            # 빈 dict default (Field(default_factory=dict) 양식) 는 통과 — Stage 2
+            # 검증 전 raw LLM 출력 받기 전 default state. LLM 출력 시점 (Stage 2
+            # `_validate_eligibility` 후 build) 에서만 strict 강제.
+            return v
+        expected_keys = set(EligibilityRules.model_fields)
+        if set(v) != expected_keys:
+            missing = expected_keys - set(v)
+            extra = set(v) - expected_keys
+            raise ValueError(
+                f"field_confidence_scores 는 EligibilityRules 18 필드와 1:1 이어야 합니다 "
+                f"(missing={sorted(missing)}, extra={sorted(extra)})."
+            )
+        for key, score in v.items():
+            if not 0 <= score <= 1:
+                raise ValueError(
+                    f"field_confidence_scores[{key!r}] 는 0 이상 1 이하여야 합니다 (actual={score})."
+                )
+        return v
+
 
 __all__ = [
     "CertificationLiteral",
