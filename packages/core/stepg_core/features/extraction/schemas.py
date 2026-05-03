@@ -19,7 +19,7 @@ sido 광역명은 free `str` — "전국" / 권역명 등 자유 표현 허용 (
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -122,6 +122,20 @@ class ExtractedPostingData(BaseModel):
     summary: str = ""
     target_description: str = ""
     support_description: str = ""
+
+    @field_validator("deadline_precise", mode="after")
+    @classmethod
+    def _validate_deadline_utc(cls, v: datetime | None) -> datetime | None:
+        """`deadline_precise` 는 timezone-aware UTC 강제 (CLAUDE.md absolute rule A).
+
+        naive datetime 차단 (raise) + 비-UTC 는 `astimezone(UTC)` 정규화 (KST → UTC
+        adapter boundary 정합, CodeRabbit PR #8 #3177707330 응답).
+        """
+        if v is None:
+            return None
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("deadline_precise 는 timezone-aware datetime 이어야 합니다.")
+        return v.astimezone(UTC)
 
 
 __all__ = [

@@ -137,6 +137,12 @@ def _remap_tags(
 
     for raw_tag in raw_tags:
         normalized = normalize_alias(raw_tag)
+        # Confidence key fallback: LLM 이 alias 양식으로 emit 시 raw_tag ≠ normalized 라
+        # raw_confidence 가 raw_tag 키로 저장됐어도 normalized 키 fallback 으로 회수
+        # (CodeRabbit PR #8 #3177707331 응답).
+        raw_conf = raw_confidence.get(raw_tag)
+        if raw_conf is None:
+            raw_conf = raw_confidence.get(normalized)
         if normalized in valid_paths:
             canonical = normalized
         elif normalized in alias_index:
@@ -147,7 +153,7 @@ def _remap_tags(
                     posting_id=posting_id,
                     raw_path=raw_tag,
                     normalized=normalized,
-                    confidence=_safe_float(raw_confidence.get(raw_tag)),
+                    confidence=_safe_float(raw_conf),
                 )
             )
             continue
@@ -156,7 +162,7 @@ def _remap_tags(
             valid_tag_ids.append(canonical)
             seen.add(canonical)
 
-        conf = _safe_float(raw_confidence.get(raw_tag))
+        conf = _safe_float(raw_conf)
         if conf is not None and 0 <= conf <= 1:
             valid_confidence[canonical] = max(valid_confidence.get(canonical, 0.0), conf)
 
