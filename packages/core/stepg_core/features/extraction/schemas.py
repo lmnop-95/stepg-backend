@@ -22,7 +22,7 @@ import re
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # ARCHITECTURE.md §4.1 + §8.2 — 6종 인증 enum (Posting eligibility + Company.certifications
 # 양쪽 동일 SoT). `anthropic_client.py::_CERTIFICATION_ENUM` mirror.
@@ -100,6 +100,28 @@ class EligibilityRules(BaseModel):
                 raise ValueError(f"KSIC 코드는 숫자만 허용 (대분류 알파벳 prefix 제외): {code!r}")
         return v
 
+    @model_validator(mode="after")
+    def _validate_range_pairs(self) -> EligibilityRules:
+        """3 범위 쌍 (`employee_count_*`, `revenue_last_year_*`, `years_in_business_*`)
+        의 `min > max` 역전 차단 (CodeRabbit PR #8 #3177824863 응답).
+
+        type 만 검증하면 `min=100, max=10` 통과 → M6 Hard Filter SQL where 절이 항상
+        false 가 되거나 정상 공고가 잘못 제외됨. 양 값 둘 다 not None 인 쌍만 검증.
+        """
+        range_pairs = (
+            ("employee_count_min", "employee_count_max"),
+            ("revenue_last_year_min", "revenue_last_year_max"),
+            ("years_in_business_min", "years_in_business_max"),
+        )
+        for min_field, max_field in range_pairs:
+            min_value = getattr(self, min_field)
+            max_value = getattr(self, max_field)
+            if min_value is not None and max_value is not None and min_value > max_value:
+                raise ValueError(
+                    f"{min_field} ({min_value}) 는 {max_field} ({max_value}) 보다 클 수 없습니다."
+                )
+        return self
+
 
 class ExtractedPostingData(BaseModel):
     """`ARCHITECTURE.md §4.2` 12 top-level 필드 mirror — LLM Stage 1 출력 전체.
@@ -167,6 +189,22 @@ class ExtractedPostingData(BaseModel):
                     f"field_confidence_scores[{key!r}] 는 0 이상 1 이하여야 합니다 (actual={score})."
                 )
         return v
+
+    @model_validator(mode="after")
+    def _validate_support_amount_range(self) -> ExtractedPostingData:
+        """`support_amount_min > support_amount_max` 역전 차단 (CodeRabbit PR #8
+        #3177824868 응답). 양 값 둘 다 not None 시만 검증.
+        """
+        if (
+            self.support_amount_min is not None
+            and self.support_amount_max is not None
+            and self.support_amount_min > self.support_amount_max
+        ):
+            raise ValueError(
+                f"support_amount_min ({self.support_amount_min}) 는 "
+                f"support_amount_max ({self.support_amount_max}) 보다 클 수 없습니다."
+            )
+        return self
 
 
 __all__ = [

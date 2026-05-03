@@ -85,7 +85,7 @@ async def call_stage1(posting: Posting, attachments: Iterable[Attachment]) -> di
             # 추가 검사 redundant (`reportUnnecessaryIsInstance`). SDK 가 parse 시점에 dict
             # 양식 강제, tool_choice 강제 + input_schema "type": "object" 와 cross-layer 보장.
             logger.info(
-                "Stage 1 ok — posting_id=%d input_tokens=%d output_tokens=%d cache_read=%d",
+                "Stage 1 호출 성공 — posting_id=%d 입력 토큰=%d 출력 토큰=%d 캐시 읽기=%d",
                 posting.id,
                 response.usage.input_tokens,
                 response.usage.output_tokens,
