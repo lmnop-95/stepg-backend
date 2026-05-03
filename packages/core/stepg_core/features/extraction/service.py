@@ -114,9 +114,19 @@ async def _resolve_field_of_work_ids(
     # `Ltree(str)` 로 cast 필요 (`fields_of_work/models.py` docstring SoT). golden 5
     # manual 실행에서 발견된 결함 (real-world bizinfo 데이터 첫 검증).
     rows = await session.execute(
-        sa.select(FieldOfWork.id).where(FieldOfWork.path.in_([Ltree(p) for p in paths]))
+        sa.select(FieldOfWork.path, FieldOfWork.id).where(
+            FieldOfWork.path.in_([Ltree(p) for p in paths])
+        )
     )
-    return list(rows.scalars().all())
+    id_by_path: dict[str, UUID] = {str(row.path): row.id for row in rows.all()}
+    # taxonomy_cache valid_paths ↔ DB `fields_of_work` seed drift 시 일부 path 가
+    # `extracted_data` JSON 에는 남고 `posting_fields_of_work` 에는 빠지는 dual-write
+    # invariant 깨짐 차단 (CodeRabbit PR #9 #3177810041 응답). raise → per-posting
+    # transaction abort → audit demote-to-warning 패턴.
+    missing = [path for path in paths if path not in id_by_path]
+    if missing:
+        raise RuntimeError(f"FieldOfWork path 미매칭 — taxonomy_cache 와 DB seed drift: {missing}.")
+    return [id_by_path[path] for path in paths]
 
 
 async def extract_posting(
