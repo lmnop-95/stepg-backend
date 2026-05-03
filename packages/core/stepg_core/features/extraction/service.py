@@ -295,9 +295,34 @@ async def extract_postings_batch(
     )
 
 
+async def reset_posting_for_re_extraction(session: AsyncSession, posting: Posting) -> None:
+    """`extracted_data IS NOT NULL` skip 우회 + 잔여물 cleanup (test fixture + baseline script 공통, F30 적용).
+
+    `posting_fields_of_work` / `ReviewQueueItem` / `ExtractionAuditLog` DELETE +
+    Posting 6 컬럼 reset. 다음 추출이 깨끗한 state 위에서 Stage 1+2+3 재실행.
+    """
+    await session.execute(
+        sa.delete(posting_fields_of_work).where(posting_fields_of_work.c.posting_id == posting.id)
+    )
+    await session.execute(
+        sa.delete(ReviewQueueItem).where(ReviewQueueItem.posting_id == posting.id)
+    )
+    await session.execute(
+        sa.delete(ExtractionAuditLog).where(ExtractionAuditLog.posting_id == posting.id)
+    )
+    posting.extracted_data = None
+    posting.eligibility = None
+    posting.summary = ""
+    posting.target_description = ""
+    posting.support_description = ""
+    posting.needs_review = False
+    await session.commit()
+
+
 __all__ = [
     "ExtractionBatchResult",
     "ExtractionResult",
     "extract_posting",
     "extract_postings_batch",
+    "reset_posting_for_re_extraction",
 ]

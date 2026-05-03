@@ -23,13 +23,11 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 import sqlalchemy as sa
-from stepg_core.features.extraction.service import extract_posting
-from stepg_core.features.postings.models import (
-    Attachment,
-    Posting,
-    posting_fields_of_work,
+from stepg_core.features.extraction.service import (
+    extract_posting,
+    reset_posting_for_re_extraction,
 )
-from stepg_core.features.review.models import ExtractionAuditLog, ReviewQueueItem
+from stepg_core.features.postings.models import Attachment, Posting
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -60,32 +58,6 @@ async def _fetch_attachments(session: AsyncSession, posting_id: int) -> list[Att
     return list(rows.scalars().all())
 
 
-async def _force_re_extract(session: AsyncSession, posting: Posting) -> None:
-    """Idempotency check (`extracted_data IS NOT NULL` skip) 우회 + 이전 실행 잔여물
-    cleanup — `--run-golden` 반복성 확보 (CodeRabbit PR #9 #3177708350 응답).
-
-    Posting 6 컬럼 reset + extract_posting() 가 적재한 association/queue/audit rows
-    모두 삭제 (DELETE-then-commit). 다음 실행이 깨끗한 state 위에서 Stage 1+2+3
-    재검증.
-    """
-    await session.execute(
-        sa.delete(posting_fields_of_work).where(posting_fields_of_work.c.posting_id == posting.id)
-    )
-    await session.execute(
-        sa.delete(ReviewQueueItem).where(ReviewQueueItem.posting_id == posting.id)
-    )
-    await session.execute(
-        sa.delete(ExtractionAuditLog).where(ExtractionAuditLog.posting_id == posting.id)
-    )
-    posting.extracted_data = None
-    posting.eligibility = None
-    posting.summary = ""
-    posting.target_description = ""
-    posting.support_description = ""
-    posting.needs_review = False
-    await session.commit()
-
-
 def _jaccard(a: set[str], b: set[str]) -> float:
     """Tag set Jaccard similarity (`PROMPTS.md §8` 채점 임계 입력)."""
     if not a and not b:
@@ -111,7 +83,7 @@ async def test_golden_8_1_ai_easy(db_session: AsyncSession) -> None:
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121189 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
@@ -154,7 +126,7 @@ async def test_golden_8_2_cleantech_medium(db_session: AsyncSession) -> None:
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121184 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
@@ -186,7 +158,7 @@ async def test_golden_8_3_content_export_medium(db_session: AsyncSession) -> Non
     if posting is None:
         pytest.skip("bizinfo PBLN_000000000121252 미적재 — M2 cron 실행 필요")
 
-    await _force_re_extract(db_session, posting)
+    await reset_posting_for_re_extraction(db_session, posting)
     attachments = await _fetch_attachments(db_session, posting.id)
     await extract_posting(db_session, posting, attachments)
 
