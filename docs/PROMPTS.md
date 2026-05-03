@@ -66,6 +66,7 @@ client.messages.create(
       "field_of_work_tag_ids": {
         "type": "array",
         "items": {"type": "string"},
+        "uniqueItems": true,
         "description": "택소노미 노드 path (예: 'tech.ai_ml.nlp'). 시스템 프롬프트의 {TAXONOMY_TREE} 에 박힌 path 만 허용."
       },
       "tag_confidence_per_id": {

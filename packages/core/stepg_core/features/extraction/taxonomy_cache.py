@@ -226,6 +226,16 @@ def _build_indexes(tree_block: str) -> tuple[frozenset[str], Mapping[str, str]]:
         {alias: min(paths_for_alias) for alias, paths_for_alias in by_alias.items()}
     )
 
+    # 빈 paths/alias_index 성공 cache 차단 — 모듈 docstring fail-fast 정신 일관 (TAXONOMY.md
+    # 누락/empty 시 RuntimeError + duplicate path fail-fast 와 동일 family). 포맷 drift
+    # (e.g. node header regex mismatch) 시 silent fail 차단 (CodeRabbit PR #7 #3177738656 응답).
+    if not paths:
+        raise RuntimeError(
+            "TAXONOMY.md 에서 taxonomy node 파싱 결과 0건 — `[path] name (...)` 양식 확인."
+        )
+    if not alias_index:
+        raise RuntimeError("TAXONOMY.md alias 인덱스가 비어있음 — 각 node 의 alias 블록 양식 확인.")
+
     return frozenset(paths), alias_index
 
 
