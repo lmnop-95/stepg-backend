@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import sqlalchemy as sa
+from sqlalchemy_utils.primitives.ltree import Ltree
 from stepg_core.features.extraction.stage1 import call_stage1
 from stepg_core.features.extraction.stage2 import (
     AUDIT_INVALID_FIELD,
@@ -107,7 +108,12 @@ async def _resolve_field_of_work_ids(
     """
     if not paths:
         return []
-    rows = await session.execute(sa.select(FieldOfWork.id).where(FieldOfWork.path.in_(paths)))
+    # `FieldOfWork.path` 는 `Mapped[Ltree]` (LtreeType) — `.in_(paths)` bind 시 각 str 을
+    # `Ltree(str)` 로 cast 필요 (`fields_of_work/models.py` docstring SoT). golden 5
+    # manual 실행에서 발견된 결함 (real-world bizinfo 데이터 첫 검증).
+    rows = await session.execute(
+        sa.select(FieldOfWork.id).where(FieldOfWork.path.in_([Ltree(p) for p in paths]))
+    )
     return [row[0] for row in rows.all()]
 
 

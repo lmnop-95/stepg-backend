@@ -1,8 +1,8 @@
-"""Pytest configuration for golden 5 케이스 (`docs/PROMPTS.md §8` SoT).
+"""Pytest fixtures for golden 5 케이스 (`docs/PROMPTS.md §8` SoT).
 
-`--run-golden` opt-in flag — real Anthropic API + DB 기반 manual run only. CI
-에서 자동 collection 대상이지만 default skip (Phase 1 SOP "테스트 규칙 없음" + plan.md
-commit 8 critic Q8 = `--run-golden` flag mechanism 채택).
+`--run-golden` flag + `golden` marker 동적 skip 은 root `tests/conftest.py`
+에서 등록 (subdir conftest.py 의 `pytest_addoption` 은 pytest constraint 로
+무시 — top-level 만 작동).
 
 Manual 실행:
 
@@ -22,7 +22,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import pytest
 import pytest_asyncio
 from stepg_core.core.db import get_session_factory
 
@@ -30,28 +29,6 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from sqlalchemy.ext.asyncio import AsyncSession
-
-
-def pytest_addoption(parser: pytest.Parser) -> None:
-    """`--run-golden` opt-in flag — golden 5 케이스 활성화."""
-    parser.addoption(
-        "--run-golden",
-        action="store_true",
-        default=False,
-        help="Run real Anthropic API + DB golden tests (opt-in, manual only)",
-    )
-
-
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """`golden` marker test 들 default skip — `--run-golden` 시만 실행."""
-    if config.getoption("--run-golden"):
-        return
-    skip_golden = pytest.mark.skip(
-        reason="real Anthropic API + DB integration test — opt-in via `--run-golden`"
-    )
-    for item in items:
-        if "golden" in item.keywords:
-            item.add_marker(skip_golden)
 
 
 @pytest_asyncio.fixture
