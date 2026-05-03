@@ -383,7 +383,7 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 
 **보수적 self-rating 정책**: §3 ## 신뢰도 본문이 SoT — invalid <5% 우선 (자동승인 70%+ 와 trade-off). 의문 시 낮춰 emit (모호·모름 zone 으로 강제). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP) — runtime 자기평가 정책은 일관 유지.
 
-**보정 (calibration)**: Phase 1 SOP — 운영 중 신뢰도 분포 (zone 사용 빈도) 측정 → prompt 보강 / 택소노미 누락 노드·aliases 보강 (`ARCHITECTURE.md §9` line 409). zone 정의 자체 변경 = 본 §5 갱신 + 앱 재시작 (§2.1 동일 SOP). Phase 1.5 — 운영 데이터 기반 zone 임계 calibration 검토 (자동승인 70%+ 미달 시 임계 조정 / zone 비율 재배분).
+**보정 (calibration)**: Phase 1 SOP — **사전 측정 SoT** = `docs/eval/m4_baseline.md` (M4.4 commit 3 baseline_v1, n=162 bizinfo, 2026-05-03 측정, M4 정량 통과 확정). **사후 drift 모니터링 SoT** = M9 admin audit log 집계 (`ExtractionAuditLog` + `ReviewQueueItem` row count). 양 SoT dual-tracking — 사전 통과 후 운영 중 drift 발생 시 prompt / 택소노미 누락 노드·aliases 보강 별 PR 로 트리거 (`ARCHITECTURE.md §9` line 409). zone 정의 자체 변경 = 본 §5 갱신 + 앱 재시작 (§2.1 동일 SOP). Phase 1.5 — 운영 데이터 기반 zone 임계 calibration 검토 (자동승인 70%+ 미달 시 임계 조정 / zone 비율 재배분).
 
 ## 6. Stage 2 검증
 
@@ -410,7 +410,7 @@ User message 단일 블록. system prompt 가 cache_control 영역, user 는 매
 
 **적재**: needs_review 분기 시 → M1 ORM 의 `ReviewQueueItem` row 적재 (M4 main 코드 commit 5 SoT, `ARCHITECTURE.md §4.4` 엔티티 관계 참조). auto-approved 분기 시 → `Posting.extracted_data` JSONB inline 적재 + `Posting.needs_review=False`. 적재 양식·트랜잭션 처리는 M4 main 코드 PR 위임 — 본 §7 은 분기 룰 SoT 만.
 
-**운영 metric 측정**: invalid 비율 / 자동승인 비율 / low-conf 평균 (M4 정량 목표 자동승인 70%+ / invalid <5% / low-conf <2개) 는 단건 Stage 3 처리 안 측정 X — M9 admin 의 audit log 집계 SoT (`ExtractionAuditLog` + `ReviewQueueItem` row count). M4 정량 미달 시 prompt / 택소노미 재검토 (`ARCHITECTURE.md §9` line 409 SOP, §5 보수적 self-rating 정책 일관).
+**운영 metric 측정**: invalid 비율 / 자동승인 비율 / low-conf 평균 (M4 정량 목표 자동승인 70%+ / invalid <5% / low-conf <2개) 는 단건 Stage 3 처리 안 측정 X. **사전 측정 SoT** = `docs/eval/m4_baseline.md` (M4.4 commit 3 baseline_v1, n=162 bizinfo, 2026-05-03 측정 — 자동승인 79.0% / invalid 0.00% / low-conf 1.63개 통과 확정). **사후 drift 모니터링 SoT** = M9 admin 의 audit log 집계 (`ExtractionAuditLog` + `ReviewQueueItem` row count). 양 SoT dual-tracking — 사후 drift 미달 시 prompt / 택소노미 재튜닝 별 PR 트리거 (`ARCHITECTURE.md §9` line 409 SOP, §5 보수적 self-rating 정책 일관).
 
 ## 8. golden 예제 4종 (+ §8.4 invalid 로깅 unit test cross-ref)
 

@@ -150,7 +150,7 @@
 - KSIC: TAXONOMY.md에는 매핑 방법론만 기술 (각 노드의 `industry_ksic_codes: list[str]` 필드 규약). 실제 KSIC 코드 매핑은 별도 작업.
 - 포함 섹션: **트리 골격 + 노드 명명 규칙(UUID 영구 고정 / `path: LTREE` / `deprecated_at` soft delete) + aliases 예시(노드당 5-15개)** 까지만. DB 스키마·LLM 프롬프트 주입 포맷·운영 규칙은 M4 착수 시점에 별도로.
 **의존**: M3 (+ Pre-work: TAXONOMY.md + PROMPTS.md 문서 작성 완료).
-**커밋**:
+**커밋** (의도, 6 commits):
 - load taxonomy seed into DB at startup
 - add Anthropic client with prompt caching + tool-use
 - Stage 1: call Claude Sonnet 4.6 with injected taxonomy
@@ -158,7 +158,15 @@
 - Stage 3: confidence gating → auto-approve vs ReviewQueueItem
 - persist `ExtractedPostingData` JSONB on posting
 
-**Checkpoint**: 20건 수동 검증. 자동승인 ≥70%, invalid <5%, low-confidence 필드 평균 <2개/공고.
+**실제 (post-M4.4 drift)**: 4 PRs / 17 logical commits / 4 squash-merged on main:
+- M4.1 PR #7 `03a74a8` — infra + taxonomy cache + Anthropic SDK (6 commits)
+- M4.2 PR #10 `07cbaa3` — Stage 1+2+3 logic + Pydantic schemas (2 commits)
+- M4.3 PR #9 `0a5391a` — persist + ARQ wire + golden 5 tests (2 commits)
+- M4.4 PR #11 `d64c4d8` — §8.4 unit test + lifespan close + n=162 baseline 측정 (7 commits, F5 분기 A 활성)
+
+**Checkpoint** (의도): 20건 수동 검증. 자동승인 ≥70%, invalid <5%, low-confidence 필드 평균 <2개/공고.
+
+**Checkpoint 통과 SoT** = M4.4 baseline_v1 (`docs/eval/m4_baseline.md`, n=162 bizinfo, 2026-05-03 측정) — 자동승인 79.0% / invalid 0.00% / low-conf 1.63개/공고. 3/3 통과 ✓.
 
 ---
 
