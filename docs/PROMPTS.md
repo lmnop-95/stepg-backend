@@ -56,9 +56,11 @@ client.messages.create(
   "description": "공고 본문·첨부에서 EligibilityRules + 택소노미 태그 + 매칭 메타를 단일 JSON 으로 추출. 모든 신뢰도 필드는 §5 5단계 self-rating 가이드를 따른다.",
   "input_schema": {
     "type": "object",
+    "additionalProperties": false,
     "properties": {
       "eligibility": {
         "type": "object",
+        "additionalProperties": false,
         "description": "Hard Filter 입력 18 필드 nested object. 필드명 / type / nullable / 6종 인증 enum 등은 PROMPTS.md §1.1 SoT."
       },
       "field_of_work_tag_ids": {

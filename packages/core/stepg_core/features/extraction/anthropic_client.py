@@ -172,9 +172,11 @@ EXTRACT_POSTING_DATA_TOOL: dict[str, Any] = {
     ),
     "input_schema": {
         "type": "object",
+        "additionalProperties": False,
         "properties": {
             "eligibility": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": _ELIGIBILITY_PROPERTIES,
                 "required": _ELIGIBILITY_REQUIRED,
                 "description": (

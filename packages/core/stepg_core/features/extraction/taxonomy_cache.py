@@ -208,6 +208,11 @@ def _build_indexes(tree_block: str) -> tuple[frozenset[str], Mapping[str, str]]:
         if parsed is None:
             continue
         path, name_body, aliases = parsed
+        # Duplicate path = silent corruption — TAXONOMY.md SoT 의 hand-curated
+        # invariant 위반. fail-fast (모듈 docstring "missing or empty TAXONOMY.md
+        # raises RuntimeError" 정신 일관, CodeRabbit PR #7 #3177652011 응답).
+        if path in paths:
+            raise RuntimeError(f"TAXONOMY.md 중복 path 감지 — '{path}'.")
         paths.add(path)
         for alias in (*aliases, name_body):
             normalized = normalize_alias(alias)
