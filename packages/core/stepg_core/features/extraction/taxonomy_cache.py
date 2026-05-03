@@ -32,6 +32,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from functools import lru_cache
+from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from stepg_core.core.config import REPO_ROOT
@@ -192,7 +193,7 @@ def _parse_node_line(line: str) -> tuple[str, str, tuple[str, ...]] | None:
     return path, name_body, aliases
 
 
-def _build_indexes(tree_block: str) -> tuple[frozenset[str], dict[str, str]]:
+def _build_indexes(tree_block: str) -> tuple[frozenset[str], Mapping[str, str]]:
     """Walk fenced tree → (`valid_paths`, `alias_index`).
 
     Multi-match tie-break: same normalized alias → N nodes → pick lexicographic-
@@ -216,9 +217,9 @@ def _build_indexes(tree_block: str) -> tuple[frozenset[str], dict[str, str]]:
     by_alias: dict[str, list[str]] = {}
     for alias, path in candidates:
         by_alias.setdefault(alias, []).append(path)
-    alias_index: dict[str, str] = {
-        alias: min(paths_for_alias) for alias, paths_for_alias in by_alias.items()
-    }
+    alias_index = MappingProxyType(
+        {alias: min(paths_for_alias) for alias, paths_for_alias in by_alias.items()}
+    )
 
     return frozenset(paths), alias_index
 

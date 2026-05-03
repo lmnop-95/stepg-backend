@@ -284,9 +284,10 @@ Stage 1 caller (commit 4) 가 `cache_control: ephemeral` 박아 호출:
 def get_anthropic_client() -> AsyncAnthropic:
     """`AsyncAnthropic` 싱글톤 — 내부 connection pool 재사용 + Phase 1 단일 슬롯 lazy.
 
-    SDK default `max_retries=2` (HTTP 5xx / 429 자동 retry). 외층
-    `asyncio.timeout(60.0)` wrapper 는 commit 4 call site 책임 (CLAUDE.md
-    absolute rule C — timeout + retry 강제 만족).
+    SDK default `max_retries=2` (HTTP 5xx / 429 자동 retry) + factory level
+    `timeout=60.0` (CodeRabbit PR #7 F1, defense-in-depth — call site 누락 risk
+    차단). 추가 외층 `asyncio.timeout(60.0)` wrapper 는 Stage 1 call site
+    (`prompts.py`/`stage1.py`) 책임 (CLAUDE.md absolute rule C 만족).
 
     `anthropic_api_key` 미설정 시 `RuntimeError` raise — Stage 1 LLM 호출은 M4
     main 파이프라인의 critical path 라 fail-fast.
@@ -299,6 +300,7 @@ def get_anthropic_client() -> AsyncAnthropic:
         )
     return AsyncAnthropic(
         api_key=settings.anthropic_api_key.get_secret_value(),
+        timeout=60.0,
         max_retries=2,
     )
 
