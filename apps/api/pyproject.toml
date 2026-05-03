@@ -5,6 +5,8 @@ description = "stepg FastAPI app"
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.135",
+    "pyjwt>=2.10",
+    "python-multipart>=0.0.18",
     "stepg-core",
     "uvicorn[standard]>=0.32",
 ]

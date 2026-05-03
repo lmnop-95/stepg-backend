@@ -1,6 +1,33 @@
 {
   "components": {
     "schemas": {
+      "Body_post_ocr_onboarding_ocr_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_post_ocr_onboarding_ocr_post",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -12,6 +39,317 @@
           "status"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "OcrBizRegResponse": {
+        "description": "Frozen boundary DTO returned by `recognize_bizlicense`.\n\nField cardinality (Q15) \u2014 multi where domain semantics require it\n(\uacf5\ub3d9\ub300\ud45c / multi-business), single elsewhere. `business_address` and\n`head_address` are both retained (Q16); the choice of which feeds\n`Company.address` is deferred to commit 5 (`POST /onboarding/complete`).",
+        "properties": {
+          "biz_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Biz Reg No"
+          },
+          "business_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Address"
+          },
+          "business_area": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Business Area"
+          },
+          "business_items": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Items",
+            "type": "array"
+          },
+          "business_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Types",
+            "type": "array"
+          },
+          "company_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
+          "corp_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corp Name"
+          },
+          "corp_reg_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corp Reg No"
+          },
+          "document_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Type"
+          },
+          "established_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Established On"
+          },
+          "head_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Address"
+          },
+          "issuance_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuance Date"
+          },
+          "representative_names": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Representative Names",
+            "type": "array"
+          },
+          "tax_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Type"
+          }
+        },
+        "title": "OcrBizRegResponse",
+        "type": "object"
+      },
+      "OnboardingCompleteRequest": {
+        "description": "`POST /onboarding/complete` \uc785\ub825 \u2014 \uc0ac\uc6a9\uc790 \uac80\uc218 \ud6c4 \ucd5c\uc885 \ud655\uc815\uac12.\n\nQ50 \ub2e8\uc77c schema: `Company` \uceec\ub7fc\uacfc 1:1 mirror + KSIC \ub9e4\ud551 input\n(`business_types`, service \ub2e8 `lookup_first_ksic_code` \uc785\ub825) +\n`fields_of_work_ids` (commit 8 `Project` M2M \uc801\uc7ac input, commit 7 \uc5d0\uc11c\ub294\nPydantic validate \ub9cc).\n\nOCR confirmed \uc911 `corp_name`/`representative_name`/`address` \ub4f1\uc740 Phase 1\n`Company` \ubbf8\uc800\uc7a5 (pitfalls D \u2014 preview only). \ubcf8 schema \ub3c4 \ubc1b\uc9c0 \uc54a\uc74c.\n\uc800\uc7a5 \uceec\ub7fc\ub9cc input contract \uc5d0 \ud3ec\ud568.",
+        "properties": {
+          "biz_reg_no": {
+            "title": "Biz Reg No",
+            "type": "string"
+          },
+          "business_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Business Types",
+            "type": "array"
+          },
+          "certifications": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Certifications",
+            "type": "array"
+          },
+          "corporate_type": {
+            "title": "Corporate Type",
+            "type": "string"
+          },
+          "employee_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Count"
+          },
+          "established_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Established On"
+          },
+          "fields_of_work_ids": {
+            "maxItems": 3,
+            "minItems": 3,
+            "prefixItems": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "format": "uuid",
+                "type": "string"
+              }
+            ],
+            "title": "Fields Of Work Ids",
+            "type": "array"
+          },
+          "revenue_last_year": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Last Year"
+          },
+          "sido": {
+            "minLength": 1,
+            "title": "Sido",
+            "type": "string"
+          }
+        },
+        "required": [
+          "biz_reg_no",
+          "corporate_type",
+          "sido",
+          "fields_of_work_ids"
+        ],
+        "title": "OnboardingCompleteRequest",
+        "type": "object"
+      },
+      "OnboardingCompleteResponse": {
+        "description": "`POST /onboarding/complete` \uc751\ub2f5 \u2014 Company + default Project \uc2dd\ubcc4\uc790.\n\ncommit 7 = `company_id` \ub9cc, commit 8 = `project_id` \ucd94\uac00 (\ub2e8\uc77c atomic tx).\nM6 \ub9e4\uce6d \uc5d4\uc9c4 (`/recommendations`) \uc774 default Project \ub97c \ud65c\uc6a9 \uc2dc client \uac00\nfollow-up GET \uc5c6\uc774 \ubc14\ub85c \uc0ac\uc6a9.",
+        "properties": {
+          "company_id": {
+            "title": "Company Id",
+            "type": "integer"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "company_id",
+          "project_id"
+        ],
+        "title": "OnboardingCompleteResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
         "type": "object"
       }
     }
@@ -38,6 +376,90 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/onboarding/complete": {
+      "post": {
+        "description": "OCR \uac80\uc218 \uc644\ub8cc input \uc73c\ub85c `Company` + default `Project` + M2M \uc801\uc7ac.\n\nService (`complete_onboarding`) \uac00 `async with session.begin():` \uc73c\ub85c\nCompany / Project / `project_fields_of_work` \uc801\uc7ac \uc804\uccb4\ub97c atomic \ub2e8\uc704\ub85c\n\uac10\uc2fc\ub2e4 (Q54). \ub530\ub77c\uc11c route \ub294 commit / rollback \uc744 \uba85\uc2dc\uc801\uc73c\ub85c \ud638\ucd9c\ud558\uc9c0\n\uc54a\uc73c\uba70 IntegrityError catch \uc2dc\uc5d0\ub3c4 begin block \uac00 \uc774\ubbf8 rollback \ud55c \uc0c1\ud0dc.\n\nNextAuth JWT \uc778\uc99d\uc740 commit 9 \uac00 `auth/deps.py::get_current_user_id` \uc758\nbody \ub97c swap \ud558\uc5ec \ucd94\uac00 (route \uc2dc\uadf8\ub2c8\ucc98 \ubcc0\ub3d9 \uc5c6\uc74c, Q37).\n\n\uc624\ub958 \ubd84\uae30:\n- `Company` UNIQUE \uc704\ubc18 (`biz_reg_no` / `user_id`) \u2192 409 ko-KR (Q1 pass5)\n- `OnboardingError(\"fields_of_work_invalid\")` \u2192 422 ko-KR (Q52). \uc0ac\uc804\n  SELECT validate \uac00 atomic tx \uc9c4\uc785 \uc804 \ucc28\ub2e8.",
+        "operationId": "post_complete_onboarding_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingCompleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingCompleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Complete",
+        "tags": [
+          "onboarding"
+        ]
+      }
+    },
+    "/onboarding/ocr": {
+      "post": {
+        "description": "\uc0ac\uc5c5\uc790\ub4f1\ub85d\uc99d OCR preview \u2014 DB \ubbf8\uc800\uc7a5.\n\nmultipart upload \u2192 chunked size-guarded read \u2192 `validate_upload`\n(size + MIME + magic-bytes + \ub2e8\uc77c \ud398\uc774\uc9c0 PDF) \u2192 `recognize_bizlicense` \u2192\n`OcrBizRegResponse`. multi-page PDF \ub294 BE \uc0ac\uc804 \uac80\uc99d\uc73c\ub85c 422 \uc989\uc2dc \uac70\ubd80\n(CLOVA \ud638\ucd9c \ube44\uc6a9 \uc808\uac10, Q31).",
+        "operationId": "post_ocr_onboarding_ocr_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_post_ocr_onboarding_ocr_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OcrBizRegResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Post Ocr",
+        "tags": [
+          "onboarding"
+        ]
       }
     }
   }
