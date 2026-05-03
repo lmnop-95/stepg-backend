@@ -13,14 +13,33 @@ Higher tier override (concurrency 환경변수 — F1 권장 양식):
 **Tier 1 ITPM 30K 한계 주의 (2026-05-03 발견)**: bizinfo posting 의 attachments
 parse 본문 포함 per-call input ~34K avg → 단일 호출도 ITPM 초과 가능성. SDK
 default retry+backoff (max_retries=2) 가 `retry-after` header 활용 회복 양식.
-Tier 2+ (80K ITPM) 권장.
 
-Pre-run SOP (F7 — optional rollback safety, 사용자 manual 실행, Q30=3):
+**Anthropic tier-aware concurrency 가이드** (env override 양식):
+
+| Tier | ITPM | 권장 BASELINE_CONCURRENCY | 162건 ETA |
+|------|------|---------------------------|-----------|
+| 1 | 30K | 1 (sequential, default) | ~25-35분 |
+| 2 | 80K | 3-5 | ~7-12분 |
+| 3 | 200K | 10-15 | ~2-5분 |
+| 4 | 400K | 15-20 | ~1-3분 |
+
+Tier 1 default sequential 양식 = burst 회피 + cache TTL 5분 안 안전 (12-15s/call
+× 162 < 5분 cache eviction 회복 cycle).
+
+**Pre-run SOP** (F7 — optional rollback safety, 사용자 manual 실행, Q30=3):
     pg_dump --table=extraction_audit_log --table=posting_fields_of_work \\
             stepg > snapshot_v1.sql
 
-Cost: ~$1.30 추정 (162 × ~$0.008, cache 재사용 시). plan 의 $0.10-0.20 추정은
-attachment payload 무시 → 실측 ~$1.30 (Q32 발견 후 갱신).
+**Cost** (실측, 2026-05-03 n=162): ~$5.11 (input $0.39 + output $2.92 +
+cache_read $1.67 + cache_write $0.13). per-posting baseline ≈ $0.03 (Sonnet 4.6,
+bizinfo attachment dense). output token $15/M dominate — cache 효과 input only,
+output cost 별도 산출 mandate.
+
+**Phase 1.5 marker — log regex coupling (F33)**: 본 script 의
+`_STAGE1_LOG_PATTERN` 가 `stage1.py:88` log message format parse → format 변경
+시 dual-edit risk. 더 자주 사용되면 `extract_posting()` signature 안
+`on_token_usage: Callable[[Usage], None] | None = None` callback 양식 마이그레이션
+검토.
 """
 
 from __future__ import annotations
