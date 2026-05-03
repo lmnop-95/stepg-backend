@@ -9,6 +9,8 @@ dependencies = []
 dev = [
     "pre-commit>=4.0.0",
     "pyright>=1.1.407",
+    "pytest-asyncio>=0.24",
+    "pytest>=8.0",
     "ruff>=0.14.0",
 ]
 
@@ -75,3 +77,10 @@ exclude = [
 reportMissingImports = "error"
 reportMissingTypeStubs = "none"
 reportUnnecessaryTypeIgnoreComment = "warning"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "golden: real Anthropic API + DB integration tests (opt-in via --run-golden)",
+]
