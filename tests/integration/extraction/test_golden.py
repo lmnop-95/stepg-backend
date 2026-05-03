@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 import pytest
 import pytest_asyncio
@@ -222,9 +223,11 @@ async def synthetic_invalid_trigger(db_session: AsyncSession) -> AsyncIterator[P
         "신청기간: 2026-06-30 까지\n\n"
         "신청자격: 중소기업기본법 상 중소기업"
     )
+    # Run-unique source_id — teardown 누락 시 다음 실행 unique key 충돌 차단
+    # (CodeRabbit PR #9 #3177782446 응답).
     posting = Posting(
         source="bizinfo",
-        source_id="GOLDEN_8_4_QUANTUM_SYNTHETIC",
+        source_id=f"GOLDEN_8_4_QUANTUM_SYNTHETIC_{uuid4().hex}",
         title="2026년 양자컴퓨팅·양자통신 R&D 지원 사업 (synthetic)",
         deadline_at=None,
         status="ACTIVE",
@@ -259,9 +262,11 @@ async def synthetic_ambiguous_multi_tag(db_session: AsyncSession) -> AsyncIterat
         "신청기간: 2026-08-31 까지\n\n"
         "신청자격: 중소기업기본법 상 중소기업"
     )
+    # Run-unique source_id — teardown 누락 시 다음 실행 unique key 충돌 차단
+    # (CodeRabbit PR #9 #3177782446 응답).
     posting = Posting(
         source="bizinfo",
-        source_id="GOLDEN_8_5_AI_MED_SYNTHETIC",
+        source_id=f"GOLDEN_8_5_AI_MED_SYNTHETIC_{uuid4().hex}",
         title="AI 기반 의료 진단 SaaS 개발 지원 사업 (synthetic)",
         deadline_at=None,
         status="ACTIVE",

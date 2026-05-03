@@ -48,6 +48,8 @@ from stepg_core.features.postings.models import (
 from stepg_core.features.review.models import ExtractionAuditLog, ReviewQueueItem
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 logger = logging.getLogger(__name__)
@@ -100,7 +102,7 @@ def _capture_pre_state(posting: Posting) -> dict[str, Any]:
 async def _resolve_field_of_work_ids(
     session: AsyncSession,
     paths: list[str],
-) -> list[Any]:
+) -> list[UUID]:
     """Stage 2 valid path 들 → `FieldOfWork.id` UUID 리스트.
 
     `posting_fields_of_work` association FK 적재용. taxonomy_cache 는 path 만 보유
@@ -114,7 +116,7 @@ async def _resolve_field_of_work_ids(
     rows = await session.execute(
         sa.select(FieldOfWork.id).where(FieldOfWork.path.in_([Ltree(p) for p in paths]))
     )
-    return [row[0] for row in rows.all()]
+    return list(rows.scalars().all())
 
 
 async def extract_posting(
@@ -210,7 +212,7 @@ async def extract_posting(
     invalid_field_count = sum(1 for r in audit_rows if r["action"] == AUDIT_INVALID_FIELD)
 
     logger.info(
-        "Stage 1-3 ok — posting_id=%d needs_review=%s invalid_tag=%d invalid_field=%d valid_tags=%d",
+        "Stage 1~3 처리 성공 — posting_id=%d needs_review=%s invalid_tag=%d invalid_field=%d valid_tags=%d",
         posting.id,
         s3_decision.needs_review,
         invalid_tag_count,
@@ -250,7 +252,7 @@ async def extract_postings_batch(
             async with session_factory() as session:
                 posting = await session.get(Posting, posting_id)
                 if posting is None:
-                    logger.warning("posting_id=%d not found — extract skip", posting_id)
+                    logger.warning("posting_id=%d 미존재 — 추출 건너뜀", posting_id)
                     failed += 1
                     continue
                 att_rows = await session.execute(
