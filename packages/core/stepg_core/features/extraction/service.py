@@ -246,25 +246,24 @@ async def extract_postings_batch(
     failed = 0
 
     for posting_id in posting_ids:
-        async with session_factory() as session:
-            posting = await session.get(Posting, posting_id)
-            if posting is None:
-                logger.warning("posting_id=%d not found — extract skip", posting_id)
-                failed += 1
-                continue
-            att_rows = await session.execute(
-                sa.select(Attachment)
-                .where(Attachment.posting_id == posting_id)
-                .order_by(Attachment.id)
-            )
-            attachments = list(att_rows.scalars().all())
-
-            try:
+        try:
+            async with session_factory() as session:
+                posting = await session.get(Posting, posting_id)
+                if posting is None:
+                    logger.warning("posting_id=%d not found — extract skip", posting_id)
+                    failed += 1
+                    continue
+                att_rows = await session.execute(
+                    sa.select(Attachment)
+                    .where(Attachment.posting_id == posting_id)
+                    .order_by(Attachment.id)
+                )
+                attachments = list(att_rows.scalars().all())
                 result = await extract_posting(session, posting, attachments)
-            except Exception:  # noqa: BLE001 — 모든 LLM/DB 실패 demote to warning
-                logger.exception("extract_posting 실패 — posting_id=%d", posting_id)
-                failed += 1
-                continue
+        except Exception:  # noqa: BLE001 — 모든 LLM/DB 실패 demote to warning
+            logger.exception("extract_posting 실패 — posting_id=%d", posting_id)
+            failed += 1
+            continue
 
         if result.skipped_idempotent:
             skipped_idempotent += 1

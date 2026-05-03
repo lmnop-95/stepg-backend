@@ -23,8 +23,12 @@ import pytest
 import pytest_asyncio
 import sqlalchemy as sa
 from stepg_core.features.extraction.service import extract_posting
-from stepg_core.features.postings.models import Attachment, Posting
-from stepg_core.features.review.models import ExtractionAuditLog
+from stepg_core.features.postings.models import (
+    Attachment,
+    Posting,
+    posting_fields_of_work,
+)
+from stepg_core.features.review.models import ExtractionAuditLog, ReviewQueueItem
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -56,9 +60,22 @@ async def _fetch_attachments(session: AsyncSession, posting_id: int) -> list[Att
 
 
 async def _force_re_extract(session: AsyncSession, posting: Posting) -> None:
-    """Idempotency check (`extracted_data IS NOT NULL` skip) 우회 — 본 테스트가
-    재추출을 강제하기 위해 미리 Posting 의 extracted_data / eligibility 컬럼 reset.
+    """Idempotency check (`extracted_data IS NOT NULL` skip) 우회 + 이전 실행 잔여물
+    cleanup — `--run-golden` 반복성 확보 (CodeRabbit PR #9 #3177708350 응답).
+
+    Posting 6 컬럼 reset + extract_posting() 가 적재한 association/queue/audit rows
+    모두 삭제 (DELETE-then-commit). 다음 실행이 깨끗한 state 위에서 Stage 1+2+3
+    재검증.
     """
+    await session.execute(
+        sa.delete(posting_fields_of_work).where(posting_fields_of_work.c.posting_id == posting.id)
+    )
+    await session.execute(
+        sa.delete(ReviewQueueItem).where(ReviewQueueItem.posting_id == posting.id)
+    )
+    await session.execute(
+        sa.delete(ExtractionAuditLog).where(ExtractionAuditLog.posting_id == posting.id)
+    )
     posting.extracted_data = None
     posting.eligibility = None
     posting.summary = ""
