@@ -237,8 +237,34 @@ def validate_stage1_output(posting_id: int, raw: dict[str, Any]) -> Stage2Result
     """
     audit_rows: list[dict[str, Any]] = []
 
-    raw_tags = list(raw.get("field_of_work_tag_ids") or [])
-    raw_confidence = dict(raw.get("tag_confidence_per_id") or {})
+    # Stage 1 contract fail-fast — 11 top-level + eligibility nested 필드 모두 LLM
+    # tool input_schema `required` + `additionalProperties: false` 강제 emit (PROMPTS.md
+    # §1 + §0 mandate). 누락 시 contract violation = `STAGE2_INVALID_FIELD` audit
+    # 적재 + raise (CodeRabbit PR #8 #3177807518 응답). silent default 양식이 LLM
+    # bad emit 을 mask 하지 않게 차단.
+    _required_top_level = (
+        "eligibility",
+        "field_of_work_tag_ids",
+        "tag_confidence_per_id",
+        "funding_uses",
+        "support_amount_min",
+        "support_amount_max",
+        "deadline_precise",
+        "required_documents",
+        "field_confidence_scores",
+        "summary",
+        "target_description",
+        "support_description",
+    )
+    missing = [key for key in _required_top_level if key not in raw]
+    if missing:
+        raise ValueError(
+            f"Stage 1 contract violation — top-level 필수 키 누락: {missing}. "
+            "LLM tool input_schema `required` 위반."
+        )
+
+    raw_tags = raw["field_of_work_tag_ids"]
+    raw_confidence = raw["tag_confidence_per_id"]
     valid_tags, valid_confidence, tag_audit_rows = _remap_tags(
         raw_tags=raw_tags,
         raw_confidence=raw_confidence,
@@ -246,7 +272,7 @@ def validate_stage1_output(posting_id: int, raw: dict[str, Any]) -> Stage2Result
     )
     audit_rows.extend(tag_audit_rows)
 
-    raw_eligibility = dict(raw.get("eligibility") or {})
+    raw_eligibility = raw["eligibility"]
     eligibility, field_audit_rows = _validate_eligibility(
         raw=raw_eligibility,
         posting_id=posting_id,
@@ -258,15 +284,15 @@ def validate_stage1_output(posting_id: int, raw: dict[str, Any]) -> Stage2Result
             "eligibility": eligibility,
             "field_of_work_tag_ids": valid_tags,
             "tag_confidence_per_id": valid_confidence,
-            "funding_uses": raw.get("funding_uses") or [],
-            "support_amount_min": raw.get("support_amount_min"),
-            "support_amount_max": raw.get("support_amount_max"),
-            "deadline_precise": raw.get("deadline_precise"),
-            "required_documents": raw.get("required_documents") or [],
-            "field_confidence_scores": raw.get("field_confidence_scores") or {},
-            "summary": raw.get("summary") or "",
-            "target_description": raw.get("target_description") or "",
-            "support_description": raw.get("support_description") or "",
+            "funding_uses": raw["funding_uses"],
+            "support_amount_min": raw["support_amount_min"],
+            "support_amount_max": raw["support_amount_max"],
+            "deadline_precise": raw["deadline_precise"],
+            "required_documents": raw["required_documents"],
+            "field_confidence_scores": raw["field_confidence_scores"],
+            "summary": raw["summary"],
+            "target_description": raw["target_description"],
+            "support_description": raw["support_description"],
         }
     )
 
